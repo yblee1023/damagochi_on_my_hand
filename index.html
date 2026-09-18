@@ -221,18 +221,26 @@ var CFG = {
     EGG: [21, 8], BABY: [21, 8], CHILD: [21, 8], TEEN: [22, 8], ADULT: [22, 8]
   },
 
-  // 깨어 있는 1분당 감소량
+  // 단계별 분당 감소량 — 오리지널 P1/P2의 하트 손실 주기를 100점 척도로 환산했다.
+  // 하트 1칸 = 25점. 어린이 배고픔 50분/칸 = 200분에 바닥 = 분당 0.5.
+  rates: {
+    EGG:   { hunger: 0,    affection: 0    },
+    BABY:  { hunger: 8.3,  affection: 6.25 },  // 3분/칸, 4분/칸 — 한 시간 내내 손이 간다
+    CHILD: { hunger: 0.50, affection: 0.42 },  // 50분/칸, 60분/칸
+    TEEN:  { hunger: 0.33, affection: 0.29 },  // 75분/칸, 85분/칸
+    ADULT: { hunger: 0.29, affection: 0.26 }   // 86분/칸
+  },
   decay: {
-    hunger: 0.10,        // 깨어 있는 하루를 겨우 버티는 수준
-    affection: 0.05,
     hygiene: 0.05,
     hygienePerPoop: 0.15,
     energyAwake: 0.10,
-    energySleep: -0.25   // 음수 = 수면 중 회복
+    energySleep: -0.30   // 음수 = 수면 중 회복
   },
 
   // 호출: 돌봄이 필요해지면 화면이 깜빡인다
-  call: { grace: 20, recall: 180 },
+  // 유예 30분 안에 응답하면 실수가 아니다. 계속 무시하면 6시간마다 다시 센다.
+  // 오리지널은 기기를 들고 다녔지만 브라우저 탭은 그럴 수 없어 재호출을 늘렸다.
+  call: { grace: 30, recall: 360 },
 
   health: {
     regen: 0.15,
@@ -248,19 +256,21 @@ var CFG = {
   poop: { afterMeal: 30, delayVar: 20, randomChance: 0.002, max: 4 },
 
   evo: {
-    fireAffection: 72,
-    goodMistakes: 8,
-    secretMistakes: 2, secretPlays: 15,
-    secretAffection: 70, secretHealth: 88, secretHygiene: 80
+    // 미니게임으로 놀아준 횟수가 불/물 계열을 가른다.
+    // 애정은 간식으로도 채울 수 있어 분기 축으로 쓰기에 적합하지 않다.
+    firePlays: 18,
+    goodMistakes: 16,
+    secretMistakes: 8, secretPlays: 40,
+    secretAffection: 55, secretHealth: 90, secretHygiene: 80
   },
 
   act: {
-    meal:  { hunger: 34, energy: -1, affection: 5 },
-    snack: { hunger: 12, affection: 8, health: -2 },
+    meal:  { hunger: 25, energy: -1, affection: 2 },   // 하트 1칸
+    snack: { hunger: 8, affection: 25, health: -2 },   // 행복 1칸, 대신 건강이 깎인다
     bath:  { hygiene: 60, affection: 2 },
     cure:  { health: 25 },
-    playWin:  { affection: 28, energy: -6, hunger: -5 },
-    playLose: { affection: 10, energy: -5, hunger: -4 }
+    playWin:  { affection: 25 },
+    playLose: { affection: 8 }
   }
 };
 
@@ -604,8 +614,9 @@ function stepMinute() {
     // 자는 동안에는 배고파지지도, 심심해지지도 않는다
     st.energy = clamp(st.energy - CFG.decay.energySleep, 0, 100);
   } else {
-    st.hunger = clamp(st.hunger - CFG.decay.hunger, 0, 100);
-    st.affection = clamp(st.affection - CFG.decay.affection, 0, 100);
+    var rate = CFG.rates[stageKey()] || CFG.rates.CHILD;
+    st.hunger = clamp(st.hunger - rate.hunger, 0, 100);
+    st.affection = clamp(st.affection - rate.affection, 0, 100);
     st.energy = clamp(st.energy - CFG.decay.energyAwake, 0, 100);
     st.hygiene = clamp(st.hygiene - (CFG.decay.hygiene + S.poops.length * CFG.decay.hygienePerPoop), 0, 100);
 
@@ -642,9 +653,10 @@ function stepMinute() {
   var drain = 0;
   if (S.sick) { drain += CFG.health.sick; }
   if (ignored) { drain += CFG.callDrain[S.call.type] || 0; }
+  var exhausted = st.energy <= 0;   // 밤에 재우지 않으면 여기까지 온다
   if (drain > 0) {
     st.health = clamp(st.health - drain, 0, 100);
-  } else {
+  } else if (!exhausted) {
     st.health = clamp(st.health + CFG.health.regen, 0, 100);
   }
 
@@ -652,6 +664,7 @@ function stepMinute() {
     var risk = 0;
     if (st.health < CFG.health.sickThreshold) { risk += CFG.health.sickChance; }
     if (ignored) { risk += CFG.health.sickFromNeglect; }
+    if (exhausted) { risk += CFG.health.sickFromNeglect; }
     if (risk > 0 && Math.random() < risk) {
       S.sick = true;
       pendingEvents.push({ t: "sick" });
@@ -683,7 +696,7 @@ function checkEvolve() {
   if (f === "baby" && S.ageMin >= CFG.stages.child) {
     evolveTo("child");
   } else if (f === "child" && S.ageMin >= CFG.stages.teen) {
-    evolveTo(avg("affection") >= e.fireAffection ? "teenFire" : "teenAqua");
+    evolveTo(S.playCount >= e.firePlays ? "teenFire" : "teenAqua");
   } else if ((f === "teenFire" || f === "teenAqua") && S.ageMin >= CFG.stages.adult) {
     var perfect = S.mistakes <= e.secretMistakes && S.playCount >= e.secretPlays &&
       avg("affection") >= e.secretAffection && avg("health") >= e.secretHealth &&
