@@ -112,6 +112,7 @@ body {
   box-shadow: inset 0 2px 8px rgba(0,0,0,.75), 0 1px 0 rgba(255,255,255,.1);
 }
 .screen { position: relative; background: var(--lcd); overflow: hidden; }
+#lcd.blink { filter: invert(1); }
 #lcd { display: block; width: 100%; height: auto; image-rendering: pixelated; }
 .grid {
   position: absolute; inset: 0; pointer-events: none;
@@ -206,42 +207,65 @@ body {
 var DEV = /(#|\?)dev/.test(location.hash + location.search);
 
 var CFG = {
-  msPerMin: DEV ? 1000 : 60000,
+  // dev 모드에서는 1분이 20ms — 6일 전체가 3분이면 끝난다
+  msPerMin: DEV ? 20 : 60000,
   offlineCapMin: 60 * 24 * 3,
 
-  decay: {
-    hunger: 0.7, hygiene: 0.2, hygienePerPoop: 0.6,
-    energyAwake: 0.6, energySleep: -2.5, affection: 0.35
-  },
-  health: {
-    regen: 0.15, starving: 0.5, filthy: 0.4, poopPile: 0.3,
-    sick: 0.8, sickThreshold: 35, sickChance: 0.04
-  },
-  sleep: { sleepyAt: 25, wakeAt: 98, ignoreGrace: 10 },
-  poop: { delayMin: 18, delayVar: 14, max: 4 },
-  neglectEvery: 10,
+  // 오리지널 1996년판 타임라인 (분)
+  stages: { hatch: 5, child: 65, teen: 3 * 1440, adult: 6 * 1440 },
 
-  stages: { hatch: 1, child: 20, teen: 90, adult: 300 },
+  // 단계별 고정 취침 시각 [잠드는 시, 깨는 시]
+  // 원조는 20~9시지만 그러면 깨어 있는 시간이 근무 시간과 정확히 겹친다.
+  // 한 시간 늦추고 8시에 깨우면 아침·저녁 돌봄이 모두 의미를 갖는다.
+  sleepWindow: {
+    EGG: [21, 8], BABY: [21, 8], CHILD: [21, 8], TEEN: [22, 8], ADULT: [22, 8]
+  },
+
+  // 깨어 있는 1분당 감소량
+  decay: {
+    hunger: 0.10,        // 깨어 있는 하루를 겨우 버티는 수준
+    affection: 0.05,
+    hygiene: 0.05,
+    hygienePerPoop: 0.15,
+    energyAwake: 0.10,
+    energySleep: -0.25   // 음수 = 수면 중 회복
+  },
+
+  // 호출: 돌봄이 필요해지면 화면이 깜빡인다
+  call: { grace: 20, recall: 180 },
+
+  health: {
+    regen: 0.15,
+    sick: 0.12,          // 병을 방치하는 동안 — 실제 사망 경로다
+    sickThreshold: 50,
+    sickChance: 0.004,
+    sickFromNeglect: 0.0015   // 호출을 계속 무시하면 병이 난다
+  },
+
+  // 응답 없는 호출이 분당 깎는 체력 — 굶기는 것이 가장 위험하다
+  callDrain: { HUNGRY: 0.10, LONELY: 0.03, MESS: 0.03, SLEEP: 0.04, SICK: 0 },
+
+  poop: { afterMeal: 30, delayVar: 20, randomChance: 0.002, max: 4 },
 
   evo: {
-    fireAffection: 65,
-    goodMistakes: 6,
-    secretMistakes: 1, secretPlays: 12,
-    secretAffection: 80, secretHealth: 92, secretHygiene: 88
+    fireAffection: 72,
+    goodMistakes: 8,
+    secretMistakes: 2, secretPlays: 15,
+    secretAffection: 70, secretHealth: 88, secretHygiene: 80
   },
 
   act: {
-    meal:  { hunger: 30, energy: -2, affection: 3 },
-    snack: { hunger: 10, affection: 8, health: -2 },
+    meal:  { hunger: 34, energy: -1, affection: 5 },
+    snack: { hunger: 12, affection: 8, health: -2 },
     bath:  { hygiene: 60, affection: 2 },
     cure:  { health: 25 },
-    playWin:  { affection: 25, energy: -14, hunger: -6 },
-    playLose: { affection: 8, energy: -10, hunger: -5 }
+    playWin:  { affection: 28, energy: -6, hunger: -5 },
+    playLose: { affection: 10, energy: -5, hunger: -4 }
   }
 };
 
-var KEY_SAVE = "pocket-creature.save.v2";
-var KEY_DEX = "pocket-creature.dex.v2";
+var KEY_SAVE = "pocket-creature.save.v3";
+var KEY_DEX = "pocket-creature.dex.v3";
 
 var INK = "#16161a";
 var LCD = "#d7d8cf";
@@ -513,12 +537,14 @@ function dexSee(f) { dex.seen[f] = (dex.seen[f] || 0) + 1; saveJSON(KEY_DEX, dex
 var S = null;
 function newPet(name) {
   return {
-    v: 2, name: name || "PIP", born: Date.now(), lastSeen: Date.now(),
+    v: 3, name: name || "PIP", born: Date.now(), lastSeen: Date.now(),
     ageMin: 0, form: "egg",
     stats: { hunger: 80, hygiene: 100, energy: 90, affection: 60, health: 100 },
-    sleeping: false, sleepy: false, sleepyFor: 0, sick: false,
+    clock: Date.now(),          // 가상 시계 — 낮밤 판정에 쓴다
+    lightOn: true, sleeping: false, sick: false,
+    call: null,                 // { type, since, counted }
     poops: [], nextPoop: null,
-    mistakes: 0, playCount: 0, neglectTimer: 0,
+    mistakes: 0, playCount: 0,
     sum: { affection: 0, health: 0, hygiene: 0, n: 0 },
     dead: false, deathAge: 0, deathCause: ""
   };
@@ -531,9 +557,32 @@ function avg(k) { return S.sum.n ? S.sum[k] / S.sum.n : 0; }
    ========================================================= */
 var pendingEvents = [];
 
+function stageKey() {
+  var f = FORMS[S.form];
+  return f ? f.stage : "CHILD";
+}
+function inSleepWindow() {
+  var w = CFG.sleepWindow[stageKey()] || CFG.sleepWindow.CHILD;
+  var h = new Date(S.clock).getHours();
+  return w[0] > w[1] ? (h >= w[0] || h < w[1]) : (h >= w[0] && h < w[1]);
+}
+
+/* 지금 돌봄을 요구하는 항목 — 없으면 null. 우선순위 순서다 */
+function currentCall() {
+  if (S.dead || S.form === "egg") { return null; }
+  if (inSleepWindow() && S.lightOn) { return "SLEEP"; }
+  if (S.sleeping) { return null; }
+  if (S.sick) { return "SICK"; }
+  if (S.stats.hunger <= 0) { return "HUNGRY"; }
+  if (S.stats.affection <= 0) { return "LONELY"; }
+  if (S.poops.length >= 2 || S.stats.hygiene <= 0) { return "MESS"; }
+  return null;
+}
+
 function stepMinute() {
   if (S.dead) { return; }
   S.ageMin += 1;
+  S.clock += 60000;
   var st = S.stats;
 
   if (S.form === "egg") {
@@ -543,56 +592,70 @@ function stepMinute() {
     return;
   }
 
-  st.hunger = clamp(st.hunger - CFG.decay.hunger, 0, 100);
-  st.affection = clamp(st.affection - CFG.decay.affection, 0, 100);
-  st.hygiene = clamp(st.hygiene - (CFG.decay.hygiene + S.poops.length * CFG.decay.hygienePerPoop), 0, 100);
+  // 아침이 되면 불은 저절로 켜진다
+  var night = inSleepWindow();
+  if (!night && !S.lightOn) {
+    S.lightOn = true;
+    pendingEvents.push({ t: "wake" });
+  }
+  S.sleeping = night && !S.lightOn;
 
   if (S.sleeping) {
+    // 자는 동안에는 배고파지지도, 심심해지지도 않는다
     st.energy = clamp(st.energy - CFG.decay.energySleep, 0, 100);
-    if (st.energy >= CFG.sleep.wakeAt) {
-      S.sleeping = false; S.sleepy = false; S.sleepyFor = 0;
-      pendingEvents.push({ t: "wake" });
+  } else {
+    st.hunger = clamp(st.hunger - CFG.decay.hunger, 0, 100);
+    st.affection = clamp(st.affection - CFG.decay.affection, 0, 100);
+    st.energy = clamp(st.energy - CFG.decay.energyAwake, 0, 100);
+    st.hygiene = clamp(st.hygiene - (CFG.decay.hygiene + S.poops.length * CFG.decay.hygienePerPoop), 0, 100);
+
+    if (S.nextPoop !== null && S.ageMin >= S.nextPoop && S.poops.length < CFG.poop.max) {
+      S.poops.push({ x: 4 + Math.floor(Math.random() * 74) });
+      S.nextPoop = null;
+    }
+    if (S.nextPoop === null && Math.random() < CFG.poop.randomChance && S.poops.length < CFG.poop.max) {
+      S.poops.push({ x: 4 + Math.floor(Math.random() * 74) });
+    }
+  }
+
+  // 호출 처리 — 한 건의 호출이 실수 하나다. 방치가 길어지면 다시 부른다
+  var ct = currentCall();
+  var ignored = false;
+  if (ct) {
+    if (!S.call || S.call.type !== ct) {
+      S.call = { type: ct, since: S.ageMin, counted: 0 };
+      pendingEvents.push({ t: "call", type: ct });
+    }
+    var waited = S.ageMin - S.call.since;
+    if (waited >= CFG.call.grace) {
+      ignored = true;
+      var due = 1 + Math.floor((waited - CFG.call.grace) / CFG.call.recall);
+      if (due > S.call.counted) {
+        S.mistakes += due - S.call.counted;
+        S.call.counted = due;
+      }
     }
   } else {
-    st.energy = clamp(st.energy - CFG.decay.energyAwake, 0, 100);
-    S.sleepy = st.energy <= CFG.sleep.sleepyAt;
-    if (S.sleepy) {
-      S.sleepyFor += 1;
-      if (S.sleepyFor > CFG.sleep.ignoreGrace && S.sleepyFor % CFG.neglectEvery === 0) {
-        S.mistakes += 1;
-        st.affection = clamp(st.affection - 4, 0, 100);
-      }
-    } else { S.sleepyFor = 0; }
+    S.call = null;
   }
 
-  if (S.nextPoop !== null && S.ageMin >= S.nextPoop && S.poops.length < CFG.poop.max) {
-    S.poops.push({ x: 4 + Math.floor(Math.random() * 74) });
-    S.nextPoop = null;
-  }
-  if (S.nextPoop === null && !S.sleeping && Math.random() < 0.012 && S.poops.length < CFG.poop.max) {
-    S.poops.push({ x: 4 + Math.floor(Math.random() * 74) });
-  }
-
-  var drain = 0, neglected = false;
-  if (st.hunger <= 0) { drain += CFG.health.starving; neglected = true; }
-  if (st.hygiene <= 0) { drain += CFG.health.filthy; neglected = true; }
-  if (S.poops.length >= 3) { drain += CFG.health.poopPile; neglected = true; }
-  if (st.affection <= 0) { neglected = true; }
+  var drain = 0;
   if (S.sick) { drain += CFG.health.sick; }
-
+  if (ignored) { drain += CFG.callDrain[S.call.type] || 0; }
   if (drain > 0) {
     st.health = clamp(st.health - drain, 0, 100);
-  } else if (st.hunger > 40 && st.hygiene > 40 && st.energy > 20 && !S.sick) {
+  } else {
     st.health = clamp(st.health + CFG.health.regen, 0, 100);
   }
 
-  if (neglected) {
-    S.neglectTimer += 1;
-    if (S.neglectTimer % CFG.neglectEvery === 0) { S.mistakes += 1; }
-  } else { S.neglectTimer = 0; }
-
-  if (!S.sick && st.health < CFG.health.sickThreshold && Math.random() < CFG.health.sickChance) {
-    S.sick = true; pendingEvents.push({ t: "sick" });
+  if (!S.sick && !S.sleeping) {
+    var risk = 0;
+    if (st.health < CFG.health.sickThreshold) { risk += CFG.health.sickChance; }
+    if (ignored) { risk += CFG.health.sickFromNeglect; }
+    if (risk > 0 && Math.random() < risk) {
+      S.sick = true;
+      pendingEvents.push({ t: "sick" });
+    }
   }
 
   if (st.health <= 0) {
@@ -605,10 +668,12 @@ function stepMinute() {
     return;
   }
 
-  S.sum.affection += st.affection;
-  S.sum.health += st.health;
-  S.sum.hygiene += st.hygiene;
-  S.sum.n += 1;
+  if (!S.sleeping) {
+    S.sum.affection += st.affection;
+    S.sum.health += st.health;
+    S.sum.hygiene += st.hygiene;
+    S.sum.n += 1;
+  }
 
   checkEvolve();
 }
@@ -657,14 +722,14 @@ var ACTIONS = {
     if (!awake()) { return; }
     if (S.stats.hunger >= 98) { say("TOO FULL"); return; }
     apply(CFG.act.meal);
-    S.nextPoop = S.ageMin + CFG.poop.delayMin + Math.floor(Math.random() * CFG.poop.delayVar);
+    S.nextPoop = S.ageMin + CFG.poop.afterMeal + Math.floor(Math.random() * CFG.poop.delayVar);
     addFx("food");
     say(S.name + " ATE WELL");
   },
   snack: function () {
     if (!awake()) { return; }
     apply(CFG.act.snack);
-    S.nextPoop = S.ageMin + CFG.poop.delayMin + Math.floor(Math.random() * CFG.poop.delayVar);
+    S.nextPoop = S.ageMin + CFG.poop.afterMeal + Math.floor(Math.random() * CFG.poop.delayVar);
     addFx("heart");
     say("SNACK! SO SWEET");
   },
@@ -688,10 +753,10 @@ var ACTIONS = {
   },
   light: function () {
     if (S.dead) { return; }
-    if (S.form === "egg") { say("AN EGG DOES NOT SLEEP."); return; }
-    if (S.sleeping) { S.sleeping = false; say("LIGHT ON - AWAKE"); }
-    else if (S.sleepy) { S.sleeping = true; S.sleepyFor = 0; say("LIGHT OFF - ZZZ"); }
-    else { say("NOT SLEEPY YET"); }
+    if (S.form === "egg") { say("AN EGG DOES NOT SLEEP"); return; }
+    if (!inSleepWindow()) { say("NOT BEDTIME YET"); return; }
+    S.lightOn = !S.lightOn;
+    say(S.lightOn ? "LIGHT ON - AWAKE" : "LIGHT OFF - ZZZ");
   },
   med: function () {
     if (S.dead) { return; }
@@ -830,8 +895,9 @@ function drawStatusPage() {
     drawText(ROWS[i].label, 3, 26 + i * 8, 1);
     drawBlocks(26, 26 + i * 8 - 1, S.stats[ROWS[i].k]);
   }
+  var w = CFG.sleepWindow[stageKey()] || CFG.sleepWindow.CHILD;
   var state = S.dead ? "GONE" : (S.sick ? "SICK" : (S.sleeping ? "ASLEEP" : "OK"));
-  drawText(state + "   B CLOSE", 3, 66, 1);
+  drawText(state + " BED " + w[0] + "  B CLOSE", 3, 66, 1);
 }
 
 function drawDexPage(bg) {
@@ -876,6 +942,8 @@ function drawFeedPage() {
    ========================================================= */
 function render() {
   frame += 1;
+  var calling = !!S.call && !S.dead && MODE === "NORMAL";
+  cv.className = (calling && frame % 4 < 2) ? "blink" : "";
   var bg = (S.sleeping && MODE === "NORMAL") ? LCD_DIM : LCD;
   cx.fillStyle = bg;
   cx.fillRect(0, 0, W, H);
@@ -937,8 +1005,10 @@ function render() {
 }
 
 function fmtAge(min) {
-  var h = Math.floor(min / 60), m = min % 60;
-  return h > 0 ? h + "H" + m + "M" : m + "M";
+  var d = Math.floor(min / 1440), h = Math.floor((min % 1440) / 60), m = min % 60;
+  if (d > 0) { return d + "D " + h + "H"; }
+  if (h > 0) { return h + "H" + m + "M"; }
+  return m + "M";
 }
 
 /* =========================================================
@@ -987,11 +1057,11 @@ function paintSel() {
   }
 }
 
+var CALL_ICON = { HUNGRY: "feed", LONELY: "play", MESS: "sweep", SLEEP: "light", SICK: "med" };
 function paintAlerts() {
-  setAlert("feed", S.stats.hunger < 25);
-  setAlert("sweep", S.poops.length >= 2);
-  setAlert("light", S.sleepy && !S.sleeping);
-  setAlert("med", S.sick);
+  var want = (S.call && !S.dead) ? CALL_ICON[S.call.type] : null;
+  var acts = ["feed", "play", "sweep", "light", "med"];
+  for (var i = 0; i < acts.length; i++) { setAlert(acts[i], acts[i] === want); }
 }
 function setAlert(act, on) {
   var b = document.querySelector('.ic[data-act="' + act + '"]');
@@ -1001,13 +1071,18 @@ function setAlert(act, on) {
 /* =========================================================
    EVENTS
    ========================================================= */
+var CALL_TEXT = {
+  HUNGRY: "HUNGRY!", LONELY: "PLAY WITH ME!", MESS: "CLEAN ME UP!",
+  SLEEP: "SLEEPY - LIGHT OFF", SICK: "SICK - GIVE MED"
+};
 function flushEvents() {
   while (pendingEvents.length) {
     var e = pendingEvents.shift();
     if (e.t === "hatch") { say("THE EGG CRACKED!"); }
     else if (e.t === "evolve") { say("NOW " + FORMS[e.form].name + "!"); addFx("heart", 2200); }
     else if (e.t === "sick") { say("SICK - GIVE MED"); }
-    else if (e.t === "wake") { say("SLEPT WELL"); }
+    else if (e.t === "wake") { say("GOOD MORNING"); }
+    else if (e.t === "call") { say(CALL_TEXT[e.type] || "NEEDS YOU"); }
     else if (e.t === "death") { showRestart(); }
   }
 }
@@ -1100,7 +1175,7 @@ function boot() {
   paintSel();
 
   var saved = loadJSON(KEY_SAVE);
-  if (saved && saved.v === 2) {
+  if (saved && saved.v === 3) {
     S = saved;
     var mins = catchUp();
     flushEvents();
