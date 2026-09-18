@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pocket Creature</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --page: #0e0e10;
+  --shell-hi: #4a4a50;
+  --shell: #34343a;
+  --shell-lo: #1d1d21;
+  --seam: #0a0a0c;
+  --bezel: #131316;
+  --lcd: #d7d8cf;
+  --lcd-dim: #b4b5ac;
+  --ink: #16161a;
+  --key: #c9c9c3;
+  --key-lo: #8d8d88;
+  --label: #8e8e96;
+  --label-hi: #e6e6ea;
+}
+:root[data-theme="light"] { --page: #0e0e10; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--page);
+  color: var(--label-hi);
+  font-family: "Silkscreen", ui-monospace, "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 26px 14px 46px;
+  gap: 16px;
+  -webkit-font-smoothing: none;
+}
+
+/* ---------------- shell ---------------- */
+.device {
+  width: min(330px, 100%);
+  padding: 20px 20px 18px;
+  border-radius: 50% 50% 44% 44% / 32% 32% 40% 40%;
+  background:
+    linear-gradient(168deg, var(--shell-hi) 0%, var(--shell) 34%, var(--shell-lo) 100%);
+  border: 2px solid #55555c;
+  box-shadow:
+    inset 0 2px 0 rgba(255,255,255,.22),
+    inset 0 -18px 30px rgba(0,0,0,.55),
+    0 20px 34px rgba(0,0,0,.6);
+  position: relative;
+}
+/* 가장자리 접합선 — 실물 완구의 상하 케이스 분리선 */
+.device::after {
+  content: "";
+  position: absolute;
+  left: 6px; right: 6px; top: 50%;
+  height: 1px;
+  background: var(--seam);
+  opacity: .35;
+  pointer-events: none;
+}
+.brand {
+  text-align: center;
+  font-size: 9px;
+  letter-spacing: .18em;
+  color: rgba(255,255,255,.3);
+  margin-bottom: 10px;
+}
+
+/* ---------------- icon strips ---------------- */
+.strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  padding: 0 2px;
+}
+.ic {
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  padding: 3px 0 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  font: inherit;
+  font-size: 8px;
+  letter-spacing: .06em;
+  color: var(--label);
+}
+.ic canvas { display: block; image-rendering: pixelated; opacity: .62; }
+.ic[data-sel="1"] { border-color: var(--key); color: var(--label-hi); }
+.ic[data-sel="1"] canvas { opacity: 1; }
+.ic[data-alert="1"] canvas { animation: pulse 1s steps(2, end) infinite; opacity: 1; }
+.ic[data-alert="1"] { color: var(--label-hi); }
+@keyframes pulse { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: .2; } }
+
+/* ---------------- screen ---------------- */
+.bezel {
+  margin: 8px 0;
+  padding: 9px;
+  border-radius: 4px;
+  background: var(--bezel);
+  box-shadow: inset 0 2px 8px rgba(0,0,0,.75), 0 1px 0 rgba(255,255,255,.1);
+}
+.screen { position: relative; background: var(--lcd); overflow: hidden; }
+#lcd { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+.grid {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    repeating-linear-gradient(to bottom, rgba(22,22,26,.07) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(to right, rgba(22,22,26,.05) 0 1px, transparent 1px 3px);
+}
+
+/* ---------------- keys ---------------- */
+.keys { display: flex; justify-content: center; gap: 20px; margin-top: 12px; }
+.key {
+  width: 38px; height: 38px; border-radius: 50%;
+  border: 0; cursor: pointer;
+  background: radial-gradient(circle at 34% 28%, #eaeae6, var(--key) 52%, var(--key-lo));
+  color: #25252a;
+  font: inherit; font-size: 10px;
+  box-shadow: 0 4px 0 #101013, inset 0 -3px 4px rgba(0,0,0,.25);
+}
+.key:active { transform: translateY(3px); box-shadow: 0 1px 0 #101013, inset 0 -2px 4px rgba(0,0,0,.25); }
+.key:focus-visible { outline: 1px solid var(--key); outline-offset: 3px; }
+
+.foot { font-size: 8px; color: #55555c; text-align: center; letter-spacing: .1em; }
+
+/* ---------------- modal ---------------- */
+.modal {
+  position: fixed; inset: 0; z-index: 20;
+  background: rgba(8,8,10,.86);
+  display: none; align-items: center; justify-content: center; padding: 18px;
+}
+.modal[data-open="1"] { display: flex; }
+.box {
+  width: min(300px, 100%);
+  background: var(--lcd); color: var(--ink);
+  padding: 16px; border: 2px solid var(--ink);
+}
+.box h2 { margin: 0 0 6px; font-size: 12px; letter-spacing: .06em; }
+.box p { margin: 0 0 12px; font-size: 9px; line-height: 1.8; }
+.box input {
+  width: 100%; background: transparent; border: 1px solid var(--ink);
+  color: var(--ink); padding: 7px 8px; font: inherit; font-size: 11px;
+  letter-spacing: .1em; margin-bottom: 10px; text-transform: uppercase;
+}
+.box input:focus-visible { outline: 1px solid var(--ink); outline-offset: 1px; }
+.go {
+  width: 100%; border: 0; background: var(--ink); color: var(--lcd);
+  padding: 9px; font: inherit; font-size: 11px; letter-spacing: .08em; cursor: pointer;
+}
+.go:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="device">
+  <div class="brand">POCKET CREATURE</div>
+  <div class="strip" id="stripTop"></div>
+
+  <div class="bezel">
+    <div class="screen">
+      <canvas id="lcd" width="96" height="72" aria-label="creature screen"></canvas>
+      <div class="grid"></div>
+    </div>
+  </div>
+
+  <div class="strip" id="stripBottom"></div>
+
+  <div class="keys">
+    <button class="key" id="keyA" title="prev / left">A</button>
+    <button class="key" id="keyB" title="select / close">B</button>
+    <button class="key" id="keyC" title="next / right">C</button>
+  </div>
+</div>
+
+<p class="foot">A / C &nbsp;MOVE &nbsp;&middot;&nbsp; B &nbsp;SELECT</p>
+
+<div class="modal" id="modal">
+  <div class="box">
+    <h2 id="modalTitle">AN EGG ARRIVED</h2>
+    <p id="modalText">IT WILL HATCH SOON. HOW YOU RAISE IT DECIDES WHAT IT BECOMES. TIME RUNS EVEN WHILE THIS TAB IS CLOSED.</p>
+    <input id="nameInput" maxlength="6" placeholder="NAME (6)" aria-label="creature name">
+    <button class="go" id="goBtn">START</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* =========================================================
+   CONFIG — 밸런스는 여기만 고치면 된다 (시뮬레이션 검증 완료)
+   ========================================================= */
+var DEV = /(#|\?)dev/.test(location.hash + location.search);
+
+var CFG = {
+  msPerMin: DEV ? 1000 : 60000,
+  offlineCapMin: 60 * 24 * 3,
+
+  decay: {
+    hunger: 0.7, hygiene: 0.2, hygienePerPoop: 0.6,
+    energyAwake: 0.6, energySleep: -2.5, affection: 0.35
+  },
+  health: {
+    regen: 0.15, starving: 0.5, filthy: 0.4, poopPile: 0.3,
+    sick: 0.8, sickThreshold: 35, sickChance: 0.04
+  },
+  sleep: { sleepyAt: 25, wakeAt: 98, ignoreGrace: 10 },
+  poop: { delayMin: 18, delayVar: 14, max: 4 },
+  neglectEvery: 10,
+
+  stages: { hatch: 1, child: 20, teen: 90, adult: 300 },
+
+  evo: {
+    fireAffection: 65,
+    goodMistakes: 6,
+    secretMistakes: 1, secretPlays: 12,
+    secretAffection: 80, secretHealth: 92, secretHygiene: 88
+  },
+
+  act: {
+    meal:  { hunger: 30, energy: -2, affection: 3 },
+    snack: { hunger: 10, affection: 8, health: -2 },
+    bath:  { hygiene: 60, affection: 2 },
+    cure:  { health: 25 },
+    playWin:  { affection: 25, energy: -14, hunger: -6 },
+    playLose: { affection: 8, energy: -10, hunger: -5 }
+  }
+};
+
+var KEY_SAVE = "pocket-creature.save.v2";
+var KEY_DEX = "pocket-creature.dex.v2";
+
+var INK = "#16161a";
+var LCD = "#d7d8cf";
+var LCD_DIM = "#b4b5ac";
+
+/* =========================================================
+   3x5 BITMAP FONT — 캔버스에 직접 찍는 픽셀 글꼴
+   ========================================================= */
+var FONT = {
+  "A": "###|#.#|###|#.#|#.#", "B": "##.|#.#|##.|#.#|##.",
+  "C": "###|#..|#..|#..|###", "D": "##.|#.#|#.#|#.#|##.",
+  "E": "###|#..|##.|#..|###", "F": "###|#..|##.|#..|#..",
+  "G": "###|#..|#.#|#.#|###", "H": "#.#|#.#|###|#.#|#.#",
+  "I": "###|.#.|.#.|.#.|###", "J": "..#|..#|..#|#.#|###",
+  "K": "#.#|#.#|##.|#.#|#.#", "L": "#..|#..|#..|#..|###",
+  "M": "#.#|###|###|#.#|#.#", "N": "##.|#.#|#.#|#.#|#.#",
+  "O": "###|#.#|#.#|#.#|###", "P": "###|#.#|###|#..|#..",
+  "Q": "###|#.#|#.#|###|..#", "R": "###|#.#|##.|#.#|#.#",
+  "S": "###|#..|###|..#|###", "T": "###|.#.|.#.|.#.|.#.",
+  "U": "#.#|#.#|#.#|#.#|###", "V": "#.#|#.#|#.#|#.#|.#.",
+  "W": "#.#|#.#|###|###|#.#", "X": "#.#|#.#|.#.|#.#|#.#",
+  "Y": "#.#|#.#|###|.#.|.#.", "Z": "###|..#|.#.|#..|###",
+  "0": "###|#.#|#.#|#.#|###", "1": ".#.|##.|.#.|.#.|###",
+  "2": "###|..#|###|#..|###", "3": "###|..#|###|..#|###",
+  "4": "#.#|#.#|###|..#|..#", "5": "###|#..|###|..#|###",
+  "6": "###|#..|###|#.#|###", "7": "###|..#|..#|..#|..#",
+  "8": "###|#.#|###|#.#|###", "9": "###|#.#|###|..#|###",
+  " ": "...|...|...|...|...", ".": "...|...|...|...|.#.",
+  ",": "...|...|...|.#.|#..", "!": ".#.|.#.|.#.|...|.#.",
+  "?": "###|..#|.##|...|.#.", "/": "..#|..#|.#.|#..|#..",
+  "-": "...|...|###|...|...", ":": "...|.#.|...|.#.|...",
+  "+": "...|.#.|###|.#.|...", "'": ".#.|.#.|...|...|...",
+  "%": "#.#|..#|.#.|#..|#.#",
+  ">": "#..|.#.|..#|.#.|#..", "<": "..#|.#.|#..|.#.|..#"
+};
+var FONT_CACHE = {};
+function glyph(ch) {
+  if (!FONT_CACHE[ch]) {
+    var d = FONT[ch] || FONT["?"];
+    FONT_CACHE[ch] = d.split("|");
+  }
+  return FONT_CACHE[ch];
+}
+function textWidth(str, sc) { return str.length * 4 * sc - sc; }
+
+/* =========================================================
+   SPRITES — 16x16 (외곽 실루엣은 채우고, 눈/입은 뚫는다)
+   ========================================================= */
+var SPR = {};
+
+SPR.egg = [
+"................","................",".....SSSSS......","....SSSSSSS.....",
+"...SSSSSSSSS....","...SSaSSSaSS....","..SSSSSSSSSSS...","..SSaSSSSSaSS...",
+"..SSSSSSSSSSS...","..SSSSSaSSSSS...","..SSSSSSSSSSS...","...SSSSSSSSS....",
+"...SSaSSSSSS....","....SSSSSSS.....",".....SSSSS......","................"];
+
+SPR.baby = [
+"................","................",".......L........","......LLL.......",
+".......L........",".....BBBBB......","....BBBBBBB.....","....BEBBBEB.....",
+"....BBBBBBB.....","....BBMMMBB.....","....BBBBBBB.....",".....BBBBB......",
+"......B.B.......","................","................","................"];
+
+SPR.child = [
+"................","................","...L.......L....","...LL.....LL....",
+"....LLLLLLL.....","...BBBBBBBBB....","..BBBBBBBBBBB...","..BBEBBBBBEBB...",
+"..BBBBBBBBBBB...","..BBBBMMMBBBB...","..BBBBBBBBBBB...","...BBBBBBBBB....",
+"....BB...BB.....","....BB...BB.....","................","................"];
+
+SPR.teenFire = [
+"................",
+".......B........",
+"......BBB.......",
+"......B.B.......",
+".....BBBBB......",
+"....BBBBBBB.....",
+"...BBBBBBBBB....",
+"...BEBBBBBEB....",
+"...BBBBBBBBB....",
+"....BBBMBBB.....",
+"....BBBBBBB.....",
+".....BBBBB......",
+".....BBBBB......",
+"....BB...BB.....",
+"...BB.....BB....",
+"................"];
+
+SPR.teenAqua = [
+"................",
+"......BBB.......",
+".....BBBBB......",
+"....BBBBBBB.....",
+"...BBBBBBBBBB...",
+"...BEBBBBBBEB...",
+"...BBBBBBBBBB...",
+"...BBBBMMBBBB...",
+"..BBBBBBBBBBBB..",
+".BBBBBBBBBBBBBB.",
+"..BBBBBBBBBBBB..",
+"...BBBBBBBBBB...",
+"....BBBBBBBB....",
+".....BBBBBB.....",
+"................",
+"................"];
+
+SPR.dragon = [
+"................",
+"..B..........B..",
+"...B........B...",
+"....BBBBBBBB....",
+"...BBBBBBBBBB...",
+"...BEBBBBBBEB...",
+"...BBBBBBBBBB...",
+"....BBBMMBBB....",
+"BBBBBBBBBBBBBBBB",
+"BBB.BBBBBBBB.BBB",
+"BB..BBBBBBBB..BB",
+"B...BBBBBBBB...B",
+"....BBBBBBBB....",
+"....BB....BB....",
+"...BB......BB...",
+"................"];
+
+SPR.ashling = [
+"................",
+"................",
+"....B...........",
+"....BB..........",
+"....BBBBBBBB....",
+"...BBBBBBBBBB...",
+"...BEBBBBBBEB...",
+"...BBBBBBBBBB...",
+"....BBMMMMBB....",
+"....BBBBBBBB....",
+"...BBBBBBBBBB...",
+"...BBBBBBBBBB...",
+"....BBBBBBBB....",
+"...BBB....BBB...",
+"................",
+"................"];
+
+SPR.guardian = [
+"................",
+"....B.....B.....",
+"....BB...BB.....",
+".....BBBBB......",
+"....BBBBBBB.....",
+"....BEBBBEB.....",
+"....BBBBBBB.....",
+".....BBMBB......",
+"...BBBBBBBBB....",
+".BBBBBBBBBBBBB..",
+"...BBBBBBBBB....",
+".....BBBBB......",
+".....BBBBB......",
+"...BBBBBBBBB....",
+"..BBBBBBBBBBB...",
+"................"];
+
+SPR.murkling = [
+"................",
+"................",
+"................",
+"....BBBBBBBB....",
+"..BBBBBBBBBBBB..",
+"..BEBBBBBBBBEB..",
+"..BBBBBBBBBBBB..",
+"..BBBBMMMMBBBB..",
+"..BBBBBBBBBBBB..",
+"..BBBBBBBBBBBB..",
+"...BBBBBBBBBB...",
+".BBBBBBBBBBBBBB.",
+"..B...B..B...B..",
+"................",
+"................",
+"................"];
+
+SPR.starborn = [
+"................",
+"....B..B..B.....",
+"....BBBBBBB.....",
+"....BBBBBBBB....",
+"...BBBBBBBBBB...",
+"...BEBBBBBBEB...",
+"...BBBBBBBBBB...",
+"....BBBMMBBB....",
+"BBB.BBBBBBBB.BBB",
+"BB..BBBBBBBB..BB",
+"BBBBBBBBBBBBBBBB",
+"....BBBBBBBB....",
+"....BBBBBBBB....",
+"....BB....BB....",
+"...BB......BB...",
+"................"];
+
+SPR.grave = [
+"................","................","................","......KKK.......",
+".....KKKKK......",".....KKWKK......",".....KWWWK......",".....KKWKK......",
+".....KKKKK......",".....KKKKK......","....KKKKKKK.....","...DDDDDDDDD....",
+"..DDDDDDDDDDD...","................","................","................"];
+
+SPR.poop = ["........","...KK...","..KKKK..","...KK...","..KKKK..",".KKKKKK.","KKKKKKKK","........"];
+SPR.food = ["........","........","..RRRR..",".RRRRRR.",".WWWWWW.",".WWWWWW.","..WWWW..","........"];
+SPR.pill = ["........","..PPPP..",".PPPPWW.",".PPPWWW.",".PPWWWW.",".PWWWWW.","..WWWW..","........"];
+SPR.heart = ["........",".RR..RR.","RRRRRRRR","RRRRRRRR",".RRRRRR.","..RRRR..","...RR...","........"];
+
+/* 흑백에서 "뚫는" 문자 — 나머지는 전부 검게 채운다 */
+var HOLES = {
+  egg: "a", baby: "EM", child: "EM", teenFire: "EM", teenAqua: "EM",
+  dragon: "EM", ashling: "EM", guardian: "EM", murkling: "EM", starborn: "EM",
+  grave: "W", poop: "", food: "W", pill: "W", heart: ""
+};
+
+/* =========================================================
+   PIXEL ICONS — 12x12
+   ========================================================= */
+var ICON_ART = {
+  feed: ["............","...#....#...","..#....#....","...#....#...","............",
+         ".##########.",".#........#.","..#......#..","...######...","............","............","............"],
+  snack:["............","............","#..........#","##..####..##","###.#..#.###",
+         "###.#..#.###","###.#..#.###","##..####..##","#..........#","............","............","............"],
+  play: ["............","...######...","..########..",".####..####.",".###....###.",
+         ".##......##.",".##......##.",".###....###.",".####..####.","..########..","...######...","............"],
+  sweep:["............",".......##...","......##....",".....##.....","....##......",
+         "...######...","..########..","..#.#.#.#...","..#.#.#.#...","..#.#.#.#...","............","............"],
+  bath: ["............",".....#......","....###.....","...#####....","..#######...",
+         "..#######...","...#####....","............",".#.......##.","............","............","............"],
+  light:["............","....####....","...#....#...","..#......#..","..#......#..",
+         "..#......#..","...#....#...","....####....",".....##.....","....####....",".....##.....","............"],
+  med:  ["............","............","............","............","..########..",
+         ".##########.",".####.#####.",".##########.","..########..","............","............","............"],
+  status:["............","..##....##..",".####..####.",".##########.",".##########.",".##########.","..########..","..########..","...######...","....####....",".....##.....","............"],
+  dex:  ["............","..########..","..#......#..","..#.####.#..","..#......#..",
+         "..#.####.#..","..#......#..","..########..","............","............","............","............"]
+};
+
+/* =========================================================
+   FORMS
+   ========================================================= */
+var FORMS = {
+  egg:      { name: "EGG",    spr: "egg",      stage: "EGG",   desc: "ABOUT TO HATCH." },
+  baby:     { name: "PIP",    spr: "baby",     stage: "BABY",  desc: "A NEWBORN SPROUT." },
+  child:    { name: "POKO",   spr: "child",    stage: "CHILD", desc: "EARS GREW. NEVER SITS STILL." },
+  teenFire: { name: "EMBER",  spr: "teenFire", stage: "TEEN",  desc: "RAISED ON PLAY AND AFFECTION." },
+  teenAqua: { name: "RIPPLE", spr: "teenAqua", stage: "TEEN",  desc: "RAISED CLEAN AND HEALTHY." },
+  dragon:   { name: "PYRON",  spr: "dragon",   stage: "ADULT", desc: "EMBER, RAISED WITH CARE." },
+  ashling:  { name: "CINDER", spr: "ashling",  stage: "ADULT", desc: "EMBER, LEFT TO GO COLD." },
+  guardian: { name: "TIDEON", spr: "guardian", stage: "ADULT", desc: "RIPPLE, RAISED WITH CARE." },
+  murkling: { name: "MURK",   spr: "murkling", stage: "ADULT", desc: "RIPPLE, LEFT TO GO STALE." },
+  starborn: { name: "ASTRA",  spr: "starborn", stage: "ADULT", desc: "NO MISTAKES. NO SHORTCUTS." }
+};
+var DEX_ORDER = ["baby","child","teenFire","teenAqua","dragon","ashling","guardian","murkling","starborn"];
+
+/* =========================================================
+   STORAGE
+   ========================================================= */
+function loadJSON(k) {
+  try { var r = localStorage.getItem(k); return r ? JSON.parse(r) : null; }
+  catch (e) { return null; }
+}
+function saveJSON(k, v) {
+  try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {}
+}
+var dex = loadJSON(KEY_DEX) || { seen: {}, records: [] };
+function dexSee(f) { dex.seen[f] = (dex.seen[f] || 0) + 1; saveJSON(KEY_DEX, dex); }
+
+/* =========================================================
+   STATE
+   ========================================================= */
+var S = null;
+function newPet(name) {
+  return {
+    v: 2, name: name || "PIP", born: Date.now(), lastSeen: Date.now(),
+    ageMin: 0, form: "egg",
+    stats: { hunger: 80, hygiene: 100, energy: 90, affection: 60, health: 100 },
+    sleeping: false, sleepy: false, sleepyFor: 0, sick: false,
+    poops: [], nextPoop: null,
+    mistakes: 0, playCount: 0, neglectTimer: 0,
+    sum: { affection: 0, health: 0, hygiene: 0, n: 0 },
+    dead: false, deathAge: 0, deathCause: ""
+  };
+}
+function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+function avg(k) { return S.sum.n ? S.sum[k] / S.sum.n : 0; }
+
+/* =========================================================
+   SIMULATION
+   ========================================================= */
+var pendingEvents = [];
+
+function stepMinute() {
+  if (S.dead) { return; }
+  S.ageMin += 1;
+  var st = S.stats;
+
+  if (S.form === "egg") {
+    if (S.ageMin >= CFG.stages.hatch) {
+      S.form = "baby"; dexSee("baby"); pendingEvents.push({ t: "hatch" });
+    }
+    return;
+  }
+
+  st.hunger = clamp(st.hunger - CFG.decay.hunger, 0, 100);
+  st.affection = clamp(st.affection - CFG.decay.affection, 0, 100);
+  st.hygiene = clamp(st.hygiene - (CFG.decay.hygiene + S.poops.length * CFG.decay.hygienePerPoop), 0, 100);
+
+  if (S.sleeping) {
+    st.energy = clamp(st.energy - CFG.decay.energySleep, 0, 100);
+    if (st.energy >= CFG.sleep.wakeAt) {
+      S.sleeping = false; S.sleepy = false; S.sleepyFor = 0;
+      pendingEvents.push({ t: "wake" });
+    }
+  } else {
+    st.energy = clamp(st.energy - CFG.decay.energyAwake, 0, 100);
+    S.sleepy = st.energy <= CFG.sleep.sleepyAt;
+    if (S.sleepy) {
+      S.sleepyFor += 1;
+      if (S.sleepyFor > CFG.sleep.ignoreGrace && S.sleepyFor % CFG.neglectEvery === 0) {
+        S.mistakes += 1;
+        st.affection = clamp(st.affection - 4, 0, 100);
+      }
+    } else { S.sleepyFor = 0; }
+  }
+
+  if (S.nextPoop !== null && S.ageMin >= S.nextPoop && S.poops.length < CFG.poop.max) {
+    S.poops.push({ x: 4 + Math.floor(Math.random() * 74) });
+    S.nextPoop = null;
+  }
+  if (S.nextPoop === null && !S.sleeping && Math.random() < 0.012 && S.poops.length < CFG.poop.max) {
+    S.poops.push({ x: 4 + Math.floor(Math.random() * 74) });
+  }
+
+  var drain = 0, neglected = false;
+  if (st.hunger <= 0) { drain += CFG.health.starving; neglected = true; }
+  if (st.hygiene <= 0) { drain += CFG.health.filthy; neglected = true; }
+  if (S.poops.length >= 3) { drain += CFG.health.poopPile; neglected = true; }
+  if (st.affection <= 0) { neglected = true; }
+  if (S.sick) { drain += CFG.health.sick; }
+
+  if (drain > 0) {
+    st.health = clamp(st.health - drain, 0, 100);
+  } else if (st.hunger > 40 && st.hygiene > 40 && st.energy > 20 && !S.sick) {
+    st.health = clamp(st.health + CFG.health.regen, 0, 100);
+  }
+
+  if (neglected) {
+    S.neglectTimer += 1;
+    if (S.neglectTimer % CFG.neglectEvery === 0) { S.mistakes += 1; }
+  } else { S.neglectTimer = 0; }
+
+  if (!S.sick && st.health < CFG.health.sickThreshold && Math.random() < CFG.health.sickChance) {
+    S.sick = true; pendingEvents.push({ t: "sick" });
+  }
+
+  if (st.health <= 0) {
+    S.dead = true; S.deathAge = S.ageMin;
+    S.deathCause = S.sick ? "ILLNESS TOOK OVER" : "CARE NEVER CAME";
+    dex.records.unshift({ name: S.name, form: S.form, ageMin: S.ageMin, at: Date.now() });
+    dex.records = dex.records.slice(0, 12);
+    saveJSON(KEY_DEX, dex);
+    pendingEvents.push({ t: "death" });
+    return;
+  }
+
+  S.sum.affection += st.affection;
+  S.sum.health += st.health;
+  S.sum.hygiene += st.hygiene;
+  S.sum.n += 1;
+
+  checkEvolve();
+}
+
+function checkEvolve() {
+  var f = S.form, e = CFG.evo;
+  if (f === "baby" && S.ageMin >= CFG.stages.child) {
+    evolveTo("child");
+  } else if (f === "child" && S.ageMin >= CFG.stages.teen) {
+    evolveTo(avg("affection") >= e.fireAffection ? "teenFire" : "teenAqua");
+  } else if ((f === "teenFire" || f === "teenAqua") && S.ageMin >= CFG.stages.adult) {
+    var perfect = S.mistakes <= e.secretMistakes && S.playCount >= e.secretPlays &&
+      avg("affection") >= e.secretAffection && avg("health") >= e.secretHealth &&
+      avg("hygiene") >= e.secretHygiene;
+    if (perfect) { evolveTo("starborn"); }
+    else if (f === "teenFire") { evolveTo(S.mistakes <= e.goodMistakes ? "dragon" : "ashling"); }
+    else { evolveTo(S.mistakes <= e.goodMistakes ? "guardian" : "murkling"); }
+  }
+}
+function evolveTo(form) { S.form = form; dexSee(form); pendingEvents.push({ t: "evolve", form: form }); }
+
+function catchUp() {
+  var mins = Math.floor((Date.now() - S.lastSeen) / CFG.msPerMin);
+  if (mins < 1) { return 0; }
+  var capped = Math.min(mins, CFG.offlineCapMin);
+  for (var i = 0; i < capped && !S.dead; i++) { stepMinute(); }
+  S.lastSeen += mins * CFG.msPerMin;
+  return capped;
+}
+
+/* =========================================================
+   ACTIONS
+   ========================================================= */
+var fx = [];
+function addFx(spr, ms) { fx.push({ spr: spr, until: Date.now() + (ms || 1400) }); }
+
+function awake() {
+  if (S.form === "egg") { say("STILL AN EGG"); return false; }
+  if (S.dead) { return false; }
+  if (S.sleeping) { say("ASLEEP - LIGHT ON?"); return false; }
+  return true;
+}
+
+var ACTIONS = {
+  feed: function () {
+    if (!awake()) { return; }
+    if (S.stats.hunger >= 98) { say("TOO FULL"); return; }
+    apply(CFG.act.meal);
+    S.nextPoop = S.ageMin + CFG.poop.delayMin + Math.floor(Math.random() * CFG.poop.delayVar);
+    addFx("food");
+    say(S.name + " ATE WELL");
+  },
+  snack: function () {
+    if (!awake()) { return; }
+    apply(CFG.act.snack);
+    S.nextPoop = S.ageMin + CFG.poop.delayMin + Math.floor(Math.random() * CFG.poop.delayVar);
+    addFx("heart");
+    say("SNACK! SO SWEET");
+  },
+  sweep: function () {
+    if (S.dead) { return; }
+    if (!S.poops.length) { say("NOTHING TO CLEAN"); return; }
+    var n = S.poops.length;
+    S.poops = [];
+    S.stats.hygiene = clamp(S.stats.hygiene + 25, 0, 100);
+    say("SWEPT " + n + " MESS" + (n > 1 ? "ES" : ""));
+  },
+  bath: function () {
+    if (!awake()) { return; }
+    apply(CFG.act.bath); S.poops = [];
+    say("ALL CLEAN AND SHINY");
+  },
+  play: function () {
+    if (!awake()) { return; }
+    if (S.stats.energy < 15) { say("TOO TIRED TO PLAY"); return; }
+    startGame();
+  },
+  light: function () {
+    if (S.dead) { return; }
+    if (S.form === "egg") { say("AN EGG DOES NOT SLEEP."); return; }
+    if (S.sleeping) { S.sleeping = false; say("LIGHT ON - AWAKE"); }
+    else if (S.sleepy) { S.sleeping = true; S.sleepyFor = 0; say("LIGHT OFF - ZZZ"); }
+    else { say("NOT SLEEPY YET"); }
+  },
+  med: function () {
+    if (S.dead) { return; }
+    if (!S.sick) { say("NOT SICK RIGHT NOW"); return; }
+    S.sick = false; apply(CFG.act.cure); addFx("pill");
+    say("MEDICINE TAKEN");
+  }
+};
+
+function apply(d) {
+  for (var k in d) {
+    if (Object.prototype.hasOwnProperty.call(d, k)) {
+      S.stats[k] = clamp(S.stats[k] + d[k], 0, 100);
+    }
+  }
+}
+
+/* =========================================================
+   MINIGAME
+   ========================================================= */
+var game = null;
+function startGame() {
+  game = { round: 1, total: 5, wins: 0, lean: 0, lockUntil: 0, flash: "" };
+  MODE = "GAME";
+  say("A LEFT OR C RIGHT?");
+}
+function gameGuess(dir) {
+  if (!game || game.done || Date.now() < game.lockUntil) { return; }
+  var petDir = Math.random() < 0.5 ? -1 : 1;
+  game.lean = petDir;
+  var hit = petDir === dir;
+  if (hit) { game.wins += 1; }
+  game.flash = hit ? "HIT" : "MISS";
+  game.lockUntil = Date.now() + 650;
+
+  if (game.round >= game.total) {
+    game.done = true;
+    var wins = game.wins, won = wins >= 3;
+    setTimeout(function () {
+      apply(won ? CFG.act.playWin : CFG.act.playLose);
+      S.playCount += 1;
+      if (won) { addFx("heart"); }
+      say(won ? wins + "/5 WHAT A GAME!" : wins + "/5 STILL FUN");
+      game = null;
+      MODE = "NORMAL";
+      paintSel();
+      render();
+    }, 700);
+  } else {
+    game.round += 1;
+  }
+}
+
+/* =========================================================
+   RENDER
+   ========================================================= */
+var cv = document.getElementById("lcd");
+var cx = cv.getContext("2d");
+var W = cv.width, H = cv.height;
+var FLOOR = H - 8;
+
+function drawSprite(ctx, rows, holes, x, y, sc, bg) {
+  sc = sc || 1;
+  holes = holes || "";
+  for (var r = 0; r < rows.length; r++) {
+    for (var c = 0; c < rows[r].length; c++) {
+      var ch = rows[r][c];
+      if (ch === ".") { continue; }
+      var hole = holes.indexOf(ch) !== -1;
+      if (hole && !bg) { continue; }
+      ctx.fillStyle = hole ? bg : INK;
+      ctx.fillRect(x + c * sc, y + r * sc, sc, sc);
+    }
+  }
+}
+
+function drawText(str, x, y, sc) {
+  sc = sc || 1;
+  str = String(str).toUpperCase();
+  cx.fillStyle = INK;
+  for (var i = 0; i < str.length; i++) {
+    var g = glyph(str[i]);
+    for (var r = 0; r < 5; r++) {
+      for (var c = 0; c < 3; c++) {
+        if (g[r][c] === "#") {
+          cx.fillRect(x + i * 4 * sc + c * sc, y + r * sc, sc, sc);
+        }
+      }
+    }
+  }
+}
+
+var frame = 0, wander = 0, wanderDir = 1;
+
+/* 화면 모드 — 조작은 오직 A / B / C */
+var MODE = "NORMAL";          // NORMAL | FEED | STATUS | DEX | GAME
+var feedSel = 0, dexIdx = 0;
+var FEED_MENU = ["MEAL", "SNACK", "BACK"];
+
+/* LCD 상단에 잠깐 떴다 사라지는 메시지 */
+var toast = "", toastUntil = 0;
+function say(t) { toast = String(t).toUpperCase(); toastUntil = Date.now() + 2600; }
+function centerX(s, sc) { return Math.round((W - textWidth(s, sc)) / 2); }
+
+/* =========================================================
+   PAGES — 전부 LCD 안에 비트맵으로 그린다
+   ========================================================= */
+function drawBlocks(x, y, val) {
+  var on = Math.round(val / 12.5), i, bx;
+  cx.fillStyle = INK;
+  for (i = 0; i < 8; i++) {
+    bx = x + i * 7;
+    if (i < on) {
+      cx.fillRect(bx, y, 5, 5);
+    } else {
+      cx.fillRect(bx, y, 5, 1); cx.fillRect(bx, y + 4, 5, 1);
+      cx.fillRect(bx, y, 1, 5); cx.fillRect(bx + 4, y, 1, 5);
+    }
+  }
+}
+
+var ROWS = [
+  { k: "hunger", label: "FOOD" }, { k: "hygiene", label: "CLEAN" },
+  { k: "energy", label: "REST" }, { k: "affection", label: "LOVE" },
+  { k: "health", label: "LIFE" }
+];
+
+function drawStatusPage() {
+  var f = FORMS[S.form] || FORMS.baby;
+  drawText(S.form === "egg" ? "EGG" : S.name + " " + f.name, 3, 2, 1);
+  drawText("AGE " + fmtAge(S.ageMin), 3, 9, 1);
+  drawText("MISS " + S.mistakes + " PLAY " + S.playCount, 3, 16, 1);
+  cx.fillStyle = INK;
+  cx.fillRect(3, 22, W - 6, 1);
+  for (var i = 0; i < ROWS.length; i++) {
+    drawText(ROWS[i].label, 3, 26 + i * 8, 1);
+    drawBlocks(26, 26 + i * 8 - 1, S.stats[ROWS[i].k]);
+  }
+  var state = S.dead ? "GONE" : (S.sick ? "SICK" : (S.sleeping ? "ASLEEP" : "OK"));
+  drawText(state + "   B CLOSE", 3, 66, 1);
+}
+
+function drawDexPage(bg) {
+  var id = DEX_ORDER[dexIdx], f = FORMS[id], seen = !!dex.seen[id];
+  var got = 0;
+  for (var i = 0; i < DEX_ORDER.length; i++) { if (dex.seen[DEX_ORDER[i]]) { got += 1; } }
+
+  drawText("DEX " + got + "/" + DEX_ORDER.length, 3, 2, 1);
+  var idx = (dexIdx + 1) + "/" + DEX_ORDER.length;
+  drawText(idx, W - textWidth(idx, 1) - 3, 2, 1);
+  cx.fillStyle = INK;
+  cx.fillRect(3, 9, W - 6, 1);
+
+  if (seen) {
+    drawSprite(cx, SPR[f.spr], HOLES[f.spr], 32, 13, 2, bg);
+  } else {
+    cx.globalAlpha = 0.25;
+    drawSprite(cx, SPR[f.spr], "", 32, 13, 2, bg);
+    cx.globalAlpha = 1;
+  }
+  var nm = seen ? f.name : "? ? ?";
+  drawText(nm, centerX(nm, 1), 48, 1);
+  var sub = seen ? "SEEN x" + dex.seen[id] : "NOT FOUND YET";
+  drawText(sub, centerX(sub, 1), 56, 1);
+  drawText("A C PAGE  B CLOSE", centerX("A C PAGE  B CLOSE", 1), 66, 1);
+}
+
+function drawFeedPage() {
+  drawText("FEED", centerX("FEED", 1), 3, 1);
+  cx.fillStyle = INK;
+  cx.fillRect(3, 10, W - 6, 1);
+  for (var i = 0; i < FEED_MENU.length; i++) {
+    var y = 22 + i * 12;
+    if (i === feedSel) { drawText(">", 24, y, 1); }
+    drawText(FEED_MENU[i], 34, y, 1);
+  }
+  drawText("A C MOVE  B OK", centerX("A C MOVE  B OK", 1), 66, 1);
+}
+
+/* =========================================================
+   MAIN RENDER
+   ========================================================= */
+function render() {
+  frame += 1;
+  var bg = (S.sleeping && MODE === "NORMAL") ? LCD_DIM : LCD;
+  cx.fillStyle = bg;
+  cx.fillRect(0, 0, W, H);
+
+  if (MODE === "STATUS") { drawStatusPage(); paintAlerts(); return; }
+  if (MODE === "DEX") { drawDexPage(bg); paintAlerts(); return; }
+  if (MODE === "FEED") { drawFeedPage(); paintAlerts(); return; }
+
+  cx.fillStyle = INK;
+  for (var i = 0; i < W; i += 3) { cx.fillRect(i, FLOOR, 1, 1); }
+
+  if (S.dead) {
+    drawSprite(cx, SPR.grave, HOLES.grave, 24, FLOOR - 45, 3, bg);
+    drawText("R I P", centerX("R I P", 2), 6, 2);
+    paintAlerts();
+    return;
+  }
+
+  if (!S.sleeping && S.form !== "egg" && MODE !== "GAME" && frame % 6 === 0) {
+    wander += wanderDir;
+    if (wander > 8) { wanderDir = -1; }
+    if (wander < -8) { wanderDir = 1; }
+  }
+
+  var bob = (!S.sleeping && frame % 2 === 0) ? 1 : 0;
+  var px = 24 + (game ? game.lean * 12 : wander);
+  var py = FLOOR - 45 + bob;
+
+  if (game) {
+    drawText(game.round + "/" + game.total, 3, 3, 1);
+    var wtxt = "WIN " + game.wins;
+    drawText(wtxt, W - textWidth(wtxt, 1) - 3, 3, 1);
+    if (game.flash && Date.now() < game.lockUntil) {
+      drawText(game.flash, centerX(game.flash, 2), 11, 2);
+    }
+  } else if (Date.now() < toastUntil && toast) {
+    drawText(toast, centerX(toast, 1), 3, 1);
+  } else if (S.form === "egg") {
+    drawText("EGG", centerX("EGG", 1), 3, 1);
+  }
+
+  var form = FORMS[S.form] || FORMS.baby;
+  drawSprite(cx, SPR[form.spr], HOLES[form.spr], px, py, 3, bg);
+
+  if (S.sleeping) { drawZ(px + 50, py + 4); }
+  if (S.sick) { drawCross(px + 50, py + 16); }
+
+  for (var p = 0; p < S.poops.length; p++) {
+    drawSprite(cx, SPR.poop, "", S.poops[p].x, FLOOR - 16, 2, bg);
+  }
+
+  var now = Date.now();
+  fx = fx.filter(function (e) { return e.until > now; });
+  if (fx.length) {
+    drawSprite(cx, SPR[fx[0].spr], HOLES[fx[0].spr], px + 18, py - 14 - (frame % 3), 2, bg);
+  }
+
+  paintAlerts();
+}
+
+function fmtAge(min) {
+  var h = Math.floor(min / 60), m = min % 60;
+  return h > 0 ? h + "H" + m + "M" : m + "M";
+}
+
+/* =========================================================
+   ICON STRIP — 표시 전용. 조작은 A / B / C 로만 한다
+   ========================================================= */
+var ICONS = [
+  { act: "feed", label: "FEED" }, { act: "play", label: "PLAY" },
+  { act: "sweep", label: "SWEEP" }, { act: "bath", label: "BATH" },
+  { act: "light", label: "LIGHT" }, { act: "med", label: "MED" },
+  { act: "status", label: "STATUS" }, { act: "dex", label: "DEX" }
+];
+var sel = 0;
+
+function buildIcons() {
+  var top = document.getElementById("stripTop");
+  var bot = document.getElementById("stripBottom");
+  ICONS.forEach(function (ic, i) {
+    var d = document.createElement("div");
+    d.className = "ic";
+    d.dataset.act = ic.act;
+    d.dataset.idx = String(i);
+    d.setAttribute("aria-hidden", "true");
+
+    var c = document.createElement("canvas");
+    c.width = 24; c.height = 24;
+    c.style.width = "24px"; c.style.height = "24px";
+    var g = c.getContext("2d");
+    drawSprite(g, ICON_ART[ic.act], "", 0, 0, 2, null);
+    var im = g.getImageData(0, 0, 24, 24);
+    for (var q = 0; q < im.data.length; q += 4) {
+      if (im.data[q + 3] > 0) { im.data[q] = 230; im.data[q + 1] = 230; im.data[q + 2] = 234; }
+    }
+    g.putImageData(im, 0, 0);
+
+    var s = document.createElement("span");
+    s.textContent = ic.label;
+    d.appendChild(c); d.appendChild(s);
+    (i < 4 ? top : bot).appendChild(d);
+  });
+}
+
+function paintSel() {
+  var all = document.querySelectorAll(".ic");
+  for (var i = 0; i < all.length; i++) {
+    all[i].dataset.sel = (MODE === "NORMAL" && Number(all[i].dataset.idx) === sel) ? "1" : "0";
+  }
+}
+
+function paintAlerts() {
+  setAlert("feed", S.stats.hunger < 25);
+  setAlert("sweep", S.poops.length >= 2);
+  setAlert("light", S.sleepy && !S.sleeping);
+  setAlert("med", S.sick);
+}
+function setAlert(act, on) {
+  var b = document.querySelector('.ic[data-act="' + act + '"]');
+  if (b) { b.dataset.alert = on ? "1" : "0"; }
+}
+
+/* =========================================================
+   EVENTS
+   ========================================================= */
+function flushEvents() {
+  while (pendingEvents.length) {
+    var e = pendingEvents.shift();
+    if (e.t === "hatch") { say("THE EGG CRACKED!"); }
+    else if (e.t === "evolve") { say("NOW " + FORMS[e.form].name + "!"); addFx("heart", 2200); }
+    else if (e.t === "sick") { say("SICK - GIVE MED"); }
+    else if (e.t === "wake") { say("SLEPT WELL"); }
+    else if (e.t === "death") { showRestart(); }
+  }
+}
+
+var modal = document.getElementById("modal");
+function showRestart() {
+  document.getElementById("modalTitle").textContent = "GOODBYE";
+  document.getElementById("modalText").textContent =
+    S.name + " LIVED " + fmtAge(S.deathAge) + ". " + S.deathCause +
+    ". THE RECORD STAYS IN THE DEX. TAKE A NEW EGG?";
+  document.getElementById("nameInput").value = "";
+  document.getElementById("goBtn").textContent = "NEW EGG";
+  modal.dataset.open = "1";
+}
+
+/* =========================================================
+   INPUT — A / B / C 세 버튼이 전부
+   ========================================================= */
+function pressA() {
+  if (MODE === "GAME") { gameGuess(-1); }
+  else if (MODE === "FEED") { feedSel = (feedSel + FEED_MENU.length - 1) % FEED_MENU.length; }
+  else if (MODE === "DEX") { dexIdx = (dexIdx + DEX_ORDER.length - 1) % DEX_ORDER.length; }
+  else if (MODE === "NORMAL") { sel = (sel + ICONS.length - 1) % ICONS.length; }
+  paintSel(); render();
+}
+function pressC() {
+  if (MODE === "GAME") { gameGuess(1); }
+  else if (MODE === "FEED") { feedSel = (feedSel + 1) % FEED_MENU.length; }
+  else if (MODE === "DEX") { dexIdx = (dexIdx + 1) % DEX_ORDER.length; }
+  else if (MODE === "NORMAL") { sel = (sel + 1) % ICONS.length; }
+  paintSel(); render();
+}
+function pressB() {
+  if (MODE === "GAME") { game = null; MODE = "NORMAL"; say("STOPPED PLAYING"); }
+  else if (MODE === "STATUS" || MODE === "DEX") { MODE = "NORMAL"; }
+  else if (MODE === "FEED") {
+    var pick = FEED_MENU[feedSel];
+    MODE = "NORMAL";
+    if (pick === "MEAL") { ACTIONS.feed(); }
+    else if (pick === "SNACK") { ACTIONS.snack(); }
+  } else {
+    runIcon(ICONS[sel].act);
+  }
+  paintSel(); render();
+}
+
+function runIcon(act) {
+  if (act === "feed") {
+    if (!awake()) { return; }
+    feedSel = 0; MODE = "FEED";
+  } else if (act === "status") {
+    MODE = "STATUS";
+  } else if (act === "dex") {
+    dexIdx = 0; MODE = "DEX";
+  } else {
+    ACTIONS[act]();
+  }
+}
+
+document.getElementById("keyA").addEventListener("click", pressA);
+document.getElementById("keyB").addEventListener("click", pressB);
+document.getElementById("keyC").addEventListener("click", pressC);
+
+document.addEventListener("keydown", function (ev) {
+  if (ev.target && ev.target.tagName === "INPUT") { return; }
+  if (!ev.key) { return; }
+  if (ev.key === "ArrowLeft") { pressA(); }
+  else if (ev.key === "ArrowRight") { pressC(); }
+  else if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); pressB(); }
+});
+
+var nameInput = document.getElementById("nameInput");
+nameInput.addEventListener("input", function () {
+  nameInput.value = nameInput.value.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 6);
+});
+document.getElementById("goBtn").addEventListener("click", function () {
+  S = newPet(nameInput.value.trim() || "PIP");
+  saveJSON(KEY_SAVE, S);
+  modal.dataset.open = "0";
+  MODE = "NORMAL";
+  say("AN EGG ARRIVED");
+  paintSel(); render();
+});
+
+/* =========================================================
+   BOOT
+   ========================================================= */
+function boot() {
+  buildIcons();
+  paintSel();
+
+  var saved = loadJSON(KEY_SAVE);
+  if (saved && saved.v === 2) {
+    S = saved;
+    var mins = catchUp();
+    flushEvents();
+    if (!S.dead && mins > 0) { say(fmtAge(mins) + " PASSED"); }
+    if (S.dead) { showRestart(); }
+  } else {
+    S = newPet("PIP");
+    modal.dataset.open = "1";
+  }
+  render();
+
+  setInterval(function () {
+    if (!S) { return; }
+    var due = Math.floor((Date.now() - S.lastSeen) / CFG.msPerMin);
+    if (due > 0) {
+      for (var i = 0; i < due && !S.dead; i++) { stepMinute(); }
+      S.lastSeen += due * CFG.msPerMin;
+      flushEvents();
+      saveJSON(KEY_SAVE, S);
+    }
+  }, 1000);
+
+  setInterval(function () { if (S) { render(); } }, 380);
+  setInterval(function () { if (S) { saveJSON(KEY_SAVE, S); } }, 10000);
+  window.addEventListener("beforeunload", function () { if (S) { saveJSON(KEY_SAVE, S); } });
+
+  if (DEV) { say("DEV 1SEC - 1MIN"); }
+}
+
+boot();
+</script>
+</body>
+</html>
