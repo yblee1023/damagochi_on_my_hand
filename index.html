@@ -215,10 +215,9 @@ var CFG = {
   stages: { hatch: 5, child: 65, teen: 3 * 1440, adult: 6 * 1440 },
 
   // 단계별 고정 취침 시각 [잠드는 시, 깨는 시]
-  // 원조는 20~9시지만 그러면 깨어 있는 시간이 근무 시간과 정확히 겹친다.
-  // 한 시간 늦추고 8시에 깨우면 아침·저녁 돌봄이 모두 의미를 갖는다.
+  // 오리지널 P1/P2 그대로
   sleepWindow: {
-    EGG: [21, 8], BABY: [21, 8], CHILD: [21, 8], TEEN: [22, 8], ADULT: [22, 8]
+    EGG: [20, 9], BABY: [20, 9], CHILD: [20, 9], TEEN: [21, 9], ADULT: [22, 9]
   },
 
   // 단계별 분당 감소량 — 오리지널 P1/P2의 하트 손실 주기를 100점 척도로 환산했다.
@@ -238,9 +237,9 @@ var CFG = {
   },
 
   // 호출: 돌봄이 필요해지면 화면이 깜빡인다
-  // 유예 30분 안에 응답하면 실수가 아니다. 계속 무시하면 6시간마다 다시 센다.
-  // 오리지널은 기기를 들고 다녔지만 브라우저 탭은 그럴 수 없어 재호출을 늘렸다.
-  call: { grace: 30, recall: 360 },
+  // 케어 실수 타이머는 하트 감소 주기에 묶인다 (오리지널 규칙).
+  // 하트 한 칸이 빠지는 시간만큼 호출을 무시하면 실수 하나.
+  call: { minInterval: 15 },
 
   health: {
     regen: 0.15,
@@ -259,8 +258,8 @@ var CFG = {
     // 미니게임으로 놀아준 횟수가 불/물 계열을 가른다.
     // 애정은 간식으로도 채울 수 있어 분기 축으로 쓰기에 적합하지 않다.
     firePlays: 18,
-    goodMistakes: 16,
-    secretMistakes: 8, secretPlays: 40,
+    goodMistakes: 2,        // 오리지널: 0~2회면 온전한 성체, 3회 이상이면 불량
+    secretMistakes: 0, secretPlays: 40,
     secretAffection: 55, secretHealth: 90, secretHygiene: 80
   },
 
@@ -554,7 +553,7 @@ function newPet(name) {
     lightOn: true, sleeping: false, sick: false,
     call: null,                 // { type, since, counted }
     poops: [], nextPoop: null,
-    mistakes: 0, playCount: 0,
+    mistakes: 0, stageMistakes: 0, playCount: 0,
     sum: { affection: 0, health: 0, hygiene: 0, n: 0 },
     dead: false, deathAge: 0, deathCause: ""
   };
@@ -578,6 +577,12 @@ function inSleepWindow() {
 }
 
 /* 지금 돌봄을 요구하는 항목 — 없으면 null. 우선순위 순서다 */
+/* 현재 단계에서 하트 한 칸이 빠지는 데 걸리는 시간(분) — 케어 실수 타이머의 단위 */
+function callInterval() {
+  var r = CFG.rates[stageKey()] || CFG.rates.CHILD;
+  return r.hunger > 0 ? Math.max(CFG.call.minInterval, Math.round(25 / r.hunger)) : 60;
+}
+
 function currentCall() {
   if (S.dead || S.form === "egg") { return null; }
   if (inSleepWindow() && S.lightOn) { return "SLEEP"; }
@@ -637,12 +642,15 @@ function stepMinute() {
       S.call = { type: ct, since: S.ageMin, counted: 0 };
       pendingEvents.push({ t: "call", type: ct });
     }
+    var iv = callInterval();
     var waited = S.ageMin - S.call.since;
-    if (waited >= CFG.call.grace) {
+    if (waited >= iv) {
       ignored = true;
-      var due = 1 + Math.floor((waited - CFG.call.grace) / CFG.call.recall);
+      var due = Math.floor(waited / iv);
       if (due > S.call.counted) {
-        S.mistakes += due - S.call.counted;
+        var add = due - S.call.counted;
+        S.mistakes += add;        // 평생 누적 — 상태창 표시용
+        S.stageMistakes += add;   // 현재 단계분 — 진화 판정에 쓴다
         S.call.counted = due;
       }
     }
@@ -698,15 +706,15 @@ function checkEvolve() {
   } else if (f === "child" && S.ageMin >= CFG.stages.teen) {
     evolveTo(S.playCount >= e.firePlays ? "teenFire" : "teenAqua");
   } else if ((f === "teenFire" || f === "teenAqua") && S.ageMin >= CFG.stages.adult) {
-    var perfect = S.mistakes <= e.secretMistakes && S.playCount >= e.secretPlays &&
+    var perfect = S.stageMistakes <= e.secretMistakes && S.playCount >= e.secretPlays &&
       avg("affection") >= e.secretAffection && avg("health") >= e.secretHealth &&
       avg("hygiene") >= e.secretHygiene;
     if (perfect) { evolveTo("starborn"); }
-    else if (f === "teenFire") { evolveTo(S.mistakes <= e.goodMistakes ? "dragon" : "ashling"); }
-    else { evolveTo(S.mistakes <= e.goodMistakes ? "guardian" : "murkling"); }
+    else if (f === "teenFire") { evolveTo(S.stageMistakes <= e.goodMistakes ? "dragon" : "ashling"); }
+    else { evolveTo(S.stageMistakes <= e.goodMistakes ? "guardian" : "murkling"); }
   }
 }
-function evolveTo(form) { S.form = form; dexSee(form); pendingEvents.push({ t: "evolve", form: form }); }
+function evolveTo(form) { S.form = form; S.stageMistakes = 0; dexSee(form); pendingEvents.push({ t: "evolve", form: form }); }
 
 function catchUp() {
   var mins = Math.floor((Date.now() - S.lastSeen) / CFG.msPerMin);
