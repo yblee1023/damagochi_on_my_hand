@@ -211,8 +211,9 @@ var CFG = {
   msPerMin: DEV ? 20 : 60000,
   offlineCapMin: 60 * 24 * 3,
 
-  // 오리지널 1996년판 타임라인 (분)
-  stages: { hatch: 5, child: 65, teen: 3 * 1440, adult: 6 * 1440 },
+  // 오리지널 P1/P2 내부 수치 (단계 체류 시간): 아기 65분, 어린이 1380분, 청소년 2220분.
+  // 아래 값은 누적 나이 기준이다. 성체까지 약 2.5일.
+  stages: { hatch: 5, child: 65, teen: 65 + 1380, adult: 65 + 1380 + 2220 },
 
   // 단계별 고정 취침 시각 [잠드는 시, 깨는 시]
   // 오리지널 P1/P2 그대로
@@ -254,18 +255,27 @@ var CFG = {
 
   poop: { afterMeal: 30, delayVar: 20, randomChance: 0.002, max: 4 },
 
+  // 체중 — 간식을 막는 것은 제한이 아니라 무게다 (오리지널 규칙)
+  // 밥 +1, 간식 +2, 미니게임 -1. 기본 체중 아래로는 내려가지 않는다.
+  weight: {
+    base: { EGG: 5, BABY: 5, CHILD: 10, TEEN: 20, ADULT: 30 },
+    max: 99, meal: 1, snack: 2, play: -1,
+    sickPerUnit: 0.00018,  // 기본 체중 초과분 1당 분당 발병 확률
+    heavyAt: 40,           // 기본 체중보다 이만큼 넘으면 몸 자체가 상한다
+    heavyDrain: 0.002      // 초과분 1당 분당 체력 감소
+  },
+
   evo: {
-    // 미니게임으로 놀아준 횟수가 불/물 계열을 가른다.
-    // 애정은 간식으로도 채울 수 있어 분기 축으로 쓰기에 적합하지 않다.
-    firePlays: 18,
-    goodMistakes: 2,        // 오리지널: 0~2회면 온전한 성체, 3회 이상이면 불량
+    // 오리지널 구조: 청소년은 어린이 단계의 돌봄 품질로, 성체는 청소년 단계의
+    // 돌봄 품질로 갈린다. 각 단계 0~2회면 양호, 3회 이상이면 불량.
+    goodMistakes: 2,
     secretMistakes: 0, secretPlays: 40,
     secretAffection: 55, secretHealth: 90, secretHygiene: 80
   },
 
   act: {
-    meal:  { hunger: 25, energy: -1, affection: 2 },   // 하트 1칸
-    snack: { hunger: 8, affection: 25, health: -2 },   // 행복 1칸, 대신 건강이 깎인다
+    meal:  { hunger: 25 },      // 배고픔 한 칸
+    snack: { affection: 25 },   // 행복 한 칸 — 배부름과 무관하게 언제든 먹는다
     bath:  { hygiene: 60, affection: 2 },
     cure:  { health: 25 },
     playWin:  { affection: 25 },
@@ -517,12 +527,12 @@ var FORMS = {
   egg:      { name: "EGG",    spr: "egg",      stage: "EGG",   desc: "ABOUT TO HATCH." },
   baby:     { name: "PIP",    spr: "baby",     stage: "BABY",  desc: "A NEWBORN SPROUT." },
   child:    { name: "POKO",   spr: "child",    stage: "CHILD", desc: "EARS GREW. NEVER SITS STILL." },
-  teenFire: { name: "EMBER",  spr: "teenFire", stage: "TEEN",  desc: "RAISED ON PLAY AND AFFECTION." },
-  teenAqua: { name: "RIPPLE", spr: "teenAqua", stage: "TEEN",  desc: "RAISED CLEAN AND HEALTHY." },
+  teenFire: { name: "EMBER",  spr: "teenFire", stage: "TEEN",  desc: "A WELL TENDED CHILDHOOD." },
+  teenAqua: { name: "RIPPLE", spr: "teenAqua", stage: "TEEN",  desc: "A ROUGH START LEFT ITS MARK." },
   dragon:   { name: "PYRON",  spr: "dragon",   stage: "ADULT", desc: "EMBER, RAISED WITH CARE." },
   ashling:  { name: "CINDER", spr: "ashling",  stage: "ADULT", desc: "EMBER, LEFT TO GO COLD." },
-  guardian: { name: "TIDEON", spr: "guardian", stage: "ADULT", desc: "RIPPLE, RAISED WITH CARE." },
-  murkling: { name: "MURK",   spr: "murkling", stage: "ADULT", desc: "RIPPLE, LEFT TO GO STALE." },
+  guardian: { name: "TIDEON", spr: "guardian", stage: "ADULT", desc: "RIPPLE, TURNED AROUND IN TIME." },
+  murkling: { name: "MURK",   spr: "murkling", stage: "ADULT", desc: "RIPPLE, NEVER RECOVERED." },
   starborn: { name: "ASTRA",  spr: "starborn", stage: "ADULT", desc: "NO MISTAKES. NO SHORTCUTS." }
 };
 var DEX_ORDER = ["baby","child","teenFire","teenAqua","dragon","ashling","guardian","murkling","starborn"];
@@ -553,6 +563,7 @@ function newPet(name) {
     lightOn: true, sleeping: false, sick: false,
     call: null,                 // { type, since, counted }
     poops: [], nextPoop: null,
+    weight: 5,
     mistakes: 0, stageMistakes: 0, playCount: 0,
     sum: { affection: 0, health: 0, hygiene: 0, n: 0 },
     dead: false, deathAge: 0, deathCause: ""
@@ -581,6 +592,12 @@ function inSleepWindow() {
 function callInterval() {
   var r = CFG.rates[stageKey()] || CFG.rates.CHILD;
   return r.hunger > 0 ? Math.max(CFG.call.minInterval, Math.round(25 / r.hunger)) : 60;
+}
+
+function baseWeight() { return CFG.weight.base[stageKey()] || 10; }
+function addWeight(n) {
+  if (stageKey() === "BABY") { return; }   // 아기는 살이 찌지 않는다
+  S.weight = clamp(S.weight + n, baseWeight(), CFG.weight.max);
 }
 
 function currentCall() {
@@ -662,6 +679,8 @@ function stepMinute() {
   if (S.sick) { drain += CFG.health.sick; }
   if (ignored) { drain += CFG.callDrain[S.call.type] || 0; }
   var exhausted = st.energy <= 0;   // 밤에 재우지 않으면 여기까지 온다
+  var over = S.weight - baseWeight() - CFG.weight.heavyAt;
+  if (over > 0) { drain += over * CFG.weight.heavyDrain; }
   if (drain > 0) {
     st.health = clamp(st.health - drain, 0, 100);
   } else if (!exhausted) {
@@ -673,6 +692,7 @@ function stepMinute() {
     if (st.health < CFG.health.sickThreshold) { risk += CFG.health.sickChance; }
     if (ignored) { risk += CFG.health.sickFromNeglect; }
     if (exhausted) { risk += CFG.health.sickFromNeglect; }
+    risk += Math.max(0, S.weight - baseWeight()) * CFG.weight.sickPerUnit;
     if (risk > 0 && Math.random() < risk) {
       S.sick = true;
       pendingEvents.push({ t: "sick" });
@@ -704,7 +724,7 @@ function checkEvolve() {
   if (f === "baby" && S.ageMin >= CFG.stages.child) {
     evolveTo("child");
   } else if (f === "child" && S.ageMin >= CFG.stages.teen) {
-    evolveTo(S.playCount >= e.firePlays ? "teenFire" : "teenAqua");
+    evolveTo(S.stageMistakes <= e.goodMistakes ? "teenFire" : "teenAqua");
   } else if ((f === "teenFire" || f === "teenAqua") && S.ageMin >= CFG.stages.adult) {
     var perfect = S.stageMistakes <= e.secretMistakes && S.playCount >= e.secretPlays &&
       avg("affection") >= e.secretAffection && avg("health") >= e.secretHealth &&
@@ -714,7 +734,9 @@ function checkEvolve() {
     else { evolveTo(S.stageMistakes <= e.goodMistakes ? "guardian" : "murkling"); }
   }
 }
-function evolveTo(form) { S.form = form; S.stageMistakes = 0; dexSee(form); pendingEvents.push({ t: "evolve", form: form }); }
+function evolveTo(form) { S.form = form; S.stageMistakes = 0;
+  if (S.weight < baseWeight()) { S.weight = baseWeight(); }
+  dexSee(form); pendingEvents.push({ t: "evolve", form: form }); }
 
 function catchUp() {
   var mins = Math.floor((Date.now() - S.lastSeen) / CFG.msPerMin);
@@ -743,6 +765,7 @@ var ACTIONS = {
     if (!awake()) { return; }
     if (S.stats.hunger >= 98) { say("TOO FULL"); return; }
     apply(CFG.act.meal);
+    addWeight(CFG.weight.meal);
     S.nextPoop = S.ageMin + CFG.poop.afterMeal + Math.floor(Math.random() * CFG.poop.delayVar);
     addFx("food");
     say(S.name + " ATE WELL");
@@ -750,9 +773,10 @@ var ACTIONS = {
   snack: function () {
     if (!awake()) { return; }
     apply(CFG.act.snack);
+    addWeight(CFG.weight.snack);
     S.nextPoop = S.ageMin + CFG.poop.afterMeal + Math.floor(Math.random() * CFG.poop.delayVar);
     addFx("heart");
-    say("SNACK! SO SWEET");
+    say("SNACK! WEIGHT +2");
   },
   sweep: function () {
     if (S.dead) { return; }
@@ -818,6 +842,7 @@ function gameGuess(dir) {
     var wins = game.wins, won = wins >= 3;
     setTimeout(function () {
       apply(won ? CFG.act.playWin : CFG.act.playLose);
+      addWeight(CFG.weight.play);
       S.playCount += 1;
       if (won) { addFx("heart"); }
       say(won ? wins + "/5 WHAT A GAME!" : wins + "/5 STILL FUN");
@@ -908,7 +933,7 @@ var ROWS = [
 function drawStatusPage() {
   var f = FORMS[S.form] || FORMS.baby;
   drawText(S.form === "egg" ? "EGG" : S.name + " " + f.name, 3, 2, 1);
-  drawText("AGE " + fmtAge(S.ageMin), 3, 9, 1);
+  drawText("AGE " + fmtAge(S.ageMin) + " WT " + S.weight, 3, 9, 1);
   drawText("MISS " + S.mistakes + " PLAY " + S.playCount, 3, 16, 1);
   cx.fillStyle = INK;
   cx.fillRect(3, 22, W - 6, 1);
