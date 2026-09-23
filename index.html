@@ -149,6 +149,13 @@ body {
   padding: 16px; border: 2px solid var(--ink);
 }
 .box h2 { margin: 0 0 6px; font-size: 12px; letter-spacing: .06em; }
+.clock {
+  font-size: 34px; line-height: 1; letter-spacing: .04em; text-align: center;
+  margin: 10px 0 4px; font-variant-numeric: tabular-nums;
+}
+.clock .colon { display: inline-block; width: .5em; }
+.clock .colon[data-off="1"] { visibility: hidden; }
+.date { font-size: 9px; letter-spacing: .14em; text-align: center; margin-bottom: 12px; }
 .box p { margin: 0 0 12px; font-size: 9px; line-height: 1.8; }
 .box input {
   width: 100%; background: transparent; border: 1px solid var(--ink);
@@ -161,6 +168,21 @@ body {
   padding: 9px; font: inherit; font-size: 11px; letter-spacing: .08em; cursor: pointer;
 }
 .go:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* 뒷면 리셋 구멍 — 실수로 누르지 않도록 작고 어둡게 */
+.pin {
+  display: block; margin: 12px auto 0; padding: 4px 6px;
+  background: transparent; border: 0; cursor: pointer;
+  color: #55555c; font: inherit; font-size: 7px; letter-spacing: .2em;
+}
+.pin::before {
+  content: ""; display: block; width: 7px; height: 7px; border-radius: 50%;
+  margin: 0 auto 3px; background: #0a0a0c;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.9), 0 1px 0 rgba(255,255,255,.08);
+}
+.pin:hover { color: var(--label); }
+.pin:focus-visible { outline: 1px solid var(--key); outline-offset: 2px; }
+.go.ghost { background: transparent; color: var(--ink); border: 1px solid var(--ink); margin-top: 8px; }
 
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
 </style>
@@ -185,6 +207,7 @@ body {
     <button class="key" id="keyB" title="select / close">B</button>
     <button class="key" id="keyC" title="next / right">C</button>
   </div>
+  <button class="pin" id="resetPin" aria-label="reset">RESET</button>
 </div>
 
 <p class="foot">A / C &nbsp;MOVE &nbsp;&middot;&nbsp; B &nbsp;SELECT</p>
@@ -192,9 +215,23 @@ body {
 <div class="modal" id="modal">
   <div class="box">
     <h2 id="modalTitle">AN EGG ARRIVED</h2>
-    <p id="modalText">IT WILL HATCH SOON. HOW YOU RAISE IT DECIDES WHAT IT BECOMES. TIME RUNS EVEN WHILE THIS TAB IS CLOSED.</p>
+    <div id="setupClockWrap">
+      <div class="clock" id="setupClock">--<span class="colon">:</span>--</div>
+      <div class="date" id="setupDate">----.--.-- ---</div>
+    </div>
+    <p id="modalText">THIS CLOCK DECIDES DAY AND NIGHT. IF IT IS RIGHT, START. TIME KEEPS RUNNING EVEN WHILE THIS TAB IS CLOSED.</p>
     <input id="nameInput" maxlength="6" placeholder="NAME (6)" aria-label="creature name">
     <button class="go" id="goBtn">START</button>
+  </div>
+</div>
+
+<div class="modal" id="resetModal">
+  <div class="box">
+    <h2>RESET?</h2>
+    <p>THE CREATURE YOU ARE RAISING NOW WILL BE GONE FOR GOOD.</p>
+    <button class="go" id="resetPet">NEW EGG</button>
+    <button class="go ghost" id="resetAll">NEW EGG + CLEAR DEX</button>
+    <button class="go ghost" id="resetCancel">CANCEL</button>
   </div>
 </div>
 
@@ -342,6 +379,24 @@ SPR.egg = [
 "...SSSSSSSSS....","...SSaSSSaSS....","..SSSSSSSSSSS...","..SSaSSSSSaSS...",
 "..SSSSSSSSSSS...","..SSSSSaSSSSS...","..SSSSSSSSSSS...","...SSSSSSSSS....",
 "...SSaSSSSSS....","....SSSSSSS.....",".....SSSSS......","................"];
+
+SPR.eggSmall = [
+"................",
+"................",
+"................",
+"................",
+".....SSSSS......",
+"....SSSSSSS.....",
+"....SSaSaSS.....",
+"...SSSSSSSSS....",
+"...SSaSSSaSS....",
+"...SSSSSSSSS....",
+"...SSSSaSSSS....",
+"...SSSSSSSSS....",
+"....SSSSSSS.....",
+"....SSaSSSS.....",
+".....SSSSS......",
+"................"];
 
 SPR.baby = [
 "................","................",".......L........","......LLL.......",
@@ -575,14 +630,22 @@ SPR.sleepStarborn = [
 
 SPR.poop = ["........","...KK...","..KKKK..","...KK...","..KKKK..",".KKKKKK.","KKKKKKKK","........"];
 SPR.food = ["........","........","..RRRR..",".RRRRRR.",".WWWWWW.",".WWWWWW.","..WWWW..","........"];
+SPR.meal0 = ["...KK...","..KKKK..",".KKKKKK.",".KKKKKK.","KKKKKKKK","KKWWWWKK","KKWWWWKK","........"];
+SPR.meal1 = ["...K....","..KK....",".KKKK...",".KKKKKK.","KKKKKKKK","KKWWWWKK","KKWWWWKK","........"];
+SPR.meal2 = ["........","........",".KK.....",".KKKK...","KKKKKK..","KKWWWWK.","KKWWWWKK","........"];
+SPR.snack0 = ["..KKKK..",".KKKKKK.",".KKKKKK.","..KKKK..","..KWWK..","...KK...","...KK...","........"];
+SPR.snack1 = ["..KK....",".KKKKK..",".KKKKKK.","..KKKK..","..KWWK..","...KK...","...KK...","........"];
+SPR.snack2 = ["........","........",".KKK....","..KKKK..","..KWWK..","...KK...","...KK...","........"];
+
 SPR.pill = ["........","..PPPP..",".PPPPWW.",".PPPWWW.",".PPWWWW.",".PWWWWW.","..WWWW..","........"];
 SPR.heart = ["........",".RR..RR.","RRRRRRRR","RRRRRRRR",".RRRRRR.","..RRRR..","...RR...","........"];
 
 /* 흑백에서 "뚫는" 문자 — 나머지는 전부 검게 채운다 */
 var HOLES = {
-  egg: "a", baby: "EM", child: "EM", teenFire: "EM", teenAqua: "EM",
+  egg: "a", eggSmall: "a", baby: "EM", child: "EM", teenFire: "EM", teenAqua: "EM",
   dragon: "EM", ashling: "EM", guardian: "EM", murkling: "EM", starborn: "EM",
   grave: "W", poop: "", food: "W", pill: "W", heart: "",
+  meal0: "W", meal1: "W", meal2: "W", snack0: "W", snack1: "W", snack2: "W",
   sleepDragon: "M", sleepAshling: "M", sleepGuardian: "M", sleepMurkling: "M", sleepStarborn: "M"
 };
 
@@ -658,6 +721,20 @@ function newPet(name) {
     dead: false, deathAge: 0, deathCause: ""
   };
 }
+/* 예전 버전 세이브에 없는 필드를 채운다 — 비어 있으면 계산이 NaN으로 번진다 */
+function migrate(saved) {
+  var base = newPet(saved.name || "PIP"), k;
+  for (k in base) {
+    if (Object.prototype.hasOwnProperty.call(base, k) && !(k in saved)) { saved[k] = base[k]; }
+  }
+  saved.stats = saved.stats || {};
+  for (k in base.stats) {
+    if (typeof saved.stats[k] !== "number" || isNaN(saved.stats[k])) { saved.stats[k] = base.stats[k]; }
+  }
+  if (!saved.sum) { saved.sum = base.sum; }
+  return saved;
+}
+
 function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
 function avg(k) { return S.sum.n ? S.sum[k] / S.sum.n : 0; }
 
@@ -859,11 +936,11 @@ function awake() {
 var ACTIONS = {
   feed: function () {
     if (!awake()) { return; }
-    if (S.stats.hunger >= 98) { say("TOO FULL"); return; }
+    if (S.stats.hunger >= 98) { refuse("NO - TOO FULL"); return; }
     apply(CFG.act.meal);
     addWeight(CFG.weight.meal);
     S.nextPoop = S.ageMin + CFG.poop.afterMeal + Math.floor(Math.random() * CFG.poop.delayVar);
-    addFx("food");
+    startEat("meal");
     say(S.name + " ATE WELL");
   },
   snack: function () {
@@ -871,7 +948,7 @@ var ACTIONS = {
     apply(CFG.act.snack);
     addWeight(CFG.weight.snack);
     S.nextPoop = S.ageMin + CFG.poop.afterMeal + Math.floor(Math.random() * CFG.poop.delayVar);
-    addFx("heart");
+    startEat("snack");
     say("SNACK! WEIGHT +2");
   },
   sweep: function () {
@@ -888,7 +965,7 @@ var ACTIONS = {
     say("ALL CLEAN AND SHINY");
   },
   play: function () {
-    if (S.stats.energy < 15) { say("TOO TIRED TO PLAY"); return; }
+    if (S.stats.energy < 15) { refuse("NO - TOO TIRED"); return; }
     openPlayMenu();
   },
   light: function () {
@@ -935,7 +1012,7 @@ var playMenu = [], playSel = 0;
 
 function openPlayMenu() {
   if (!awake()) { return; }
-  if (S.weight <= baseWeight()) { say("TOO LIGHT TO PLAY"); return; }
+  if (S.weight <= baseWeight()) { refuse("NO - TOO LIGHT"); return; }
   playMenu = unlockedGames().map(function (g) { return g.label; });
   playMenu.push("BACK");
   playSel = 0;
@@ -1122,29 +1199,123 @@ function drawText(str, x, y, sc) {
 
 var frame = 0;
 
-/* 대기 동작 — 걷기와 멈춤을 번갈아 하고, 가끔 눈을 깜빡인다 */
+/* 대기 동작 — 걷기 / 멈춤 / 제자리 뛰기 / 뒤돌기를 섞고,
+   눈 깜빡임, 두리번거림, 입 여닫기를 따로 돌린다 */
 var petX = 0, petDir = 1, petMode = "WALK", modeLeft = 0, step = 0;
 var blinkLeft = 0, blinkWait = 30;
+var hopLeft = 0, eyeLook = 0, eyeLookLeft = 0;
+var flyT = 0, flyLen = 0, flyH = 0;
+var HOP_ARC = [0, -4, -7, -8, -8, -6, -3, 0];
+
+/* 날개나 지느러미가 있는 폼일수록 높이, 자주 뜬다 */
+var FLY = {
+  dragon:   { h: 16, p: 0.30 },
+  starborn: { h: 16, p: 0.30 },
+  guardian: { h: 12, p: 0.24 },
+  teenAqua: { h: 10, p: 0.20 },
+  teenFire: { h: 9,  p: 0.16 }
+};
+function flyTrait() { return FLY[S.form] || { h: 7, p: 0.10 }; }
 function rnd(n) { return Math.floor(Math.random() * n); }
+
+function pickMode() {
+  // 비행 확률을 먼저 떼고, 남은 확률을 나머지 동작에 비례 배분한다.
+  // 그냥 누적 구간으로 쓰면 비행이 잦은 폼에서 뒤쪽 동작이 밀려나 사라진다.
+  var t = flyTrait(), rest = 1 - t.p, r = Math.random();
+  var bWalk = t.p + rest * 0.42;
+  var bIdle = bWalk + rest * 0.30;
+  var bHop  = bIdle + rest * 0.17;
+  if (r < t.p) {
+    petMode = "FLY";
+    flyH = t.h; flyT = 0; flyLen = 26 + rnd(34);
+    modeLeft = flyLen;
+    if (Math.random() < 0.5) { petDir = -petDir; }
+  } else if (r < bWalk) {
+    petMode = "WALK"; modeLeft = 16 + rnd(34);
+    if (Math.random() < 0.35) { petDir = -petDir; }
+  } else if (r < bIdle) {
+    petMode = "IDLE"; modeLeft = 12 + rnd(24);
+  } else if (r < bHop) {
+    petMode = "HOP"; hopLeft = HOP_ARC.length - 1; modeLeft = HOP_ARC.length + 2;
+  } else {
+    petMode = "TURN"; petDir = -petDir; modeLeft = 6 + rnd(6);
+  }
+}
+
+/* 떠 있는 높이 — 올라갔다 머물다 내려온다 */
+function flyAlt() {
+  var up = 8;
+  if (flyT < up) { return -Math.round(flyH * flyT / up); }
+  if (flyT > flyLen - up) { return -Math.round(flyH * (flyLen - flyT) / up); }
+  return -(flyH + (Math.floor(frame / 4) % 2));
+}
 
 function animate() {
   modeLeft -= 1;
-  if (modeLeft <= 0) {
-    if (Math.random() < 0.4) { petMode = "IDLE"; modeLeft = 10 + rnd(22); }
-    else {
-      petMode = "WALK"; modeLeft = 16 + rnd(34);
-      if (Math.random() < 0.4) { petDir = -petDir; }
-    }
-  }
+  if (modeLeft <= 0) { pickMode(); }
+
   if (petMode === "WALK" && frame % 2 === 0) {
     petX += petDir;
     step += 1;
     if (petX > 13) { petX = 13; petDir = -1; }
     if (petX < -13) { petX = -13; petDir = 1; }
   }
+  if (petMode === "FLY") {
+    flyT += 1;
+    if (frame % 3 === 0) {
+      petX += petDir;
+      if (petX > 14) { petX = 14; petDir = -1; }
+      if (petX < -14) { petX = -14; petDir = 1; }
+    }
+  }
+  if (hopLeft > 0) { hopLeft -= 1; }
+
   blinkWait -= 1;
   if (blinkWait <= 0) { blinkLeft = 2; blinkWait = 22 + rnd(55); }
   if (blinkLeft > 0) { blinkLeft -= 1; }
+
+  // 멈춰 있을 때는 가끔 주위를 두리번거린다
+  if (eyeLookLeft > 0) { eyeLookLeft -= 1; }
+  else if (petMode !== "WALK" && Math.random() < 0.06) {
+    eyeLook = Math.random() < 0.5 ? -1 : 1;
+    eyeLookLeft = 6 + rnd(10);
+  }
+}
+
+/* 먹기 — 세 입에 나눠 먹는다. 한 입 = 입 벌림 3프레임 + 다묾 3프레임 */
+var eat = null;
+var EAT_BITE = 6, EAT_BITES = 3;
+function startEat(kind) { eat = { kind: kind, t: 0 }; refuseLeft = 0; }
+function eatMouthOpen() { return eat && (eat.t % EAT_BITE) < 3; }
+/* 몇 입째 먹었는가 — 입을 다무는 순간 한 입이 사라진다 */
+function eatStage() { return Math.floor(eat.t / EAT_BITE) + ((eat.t % EAT_BITE) >= 3 ? 1 : 0); }
+function eatTick() {
+  if (!eat) { return; }
+  eat.t += 1;
+  if (eat.t >= EAT_BITE * EAT_BITES) {
+    if (eat.kind === "snack") { addFx("heart", 900); }   // 간식을 다 먹으면 기뻐한다
+    eat = null;
+  }
+}
+
+/* 거절 — 고개를 좌우로 도리도리 */
+var refuseLeft = 0;
+var REFUSE_FRAMES = 12;
+function refuse(msg) {
+  refuseLeft = REFUSE_FRAMES;
+  say(msg);
+}
+/* 지금 고개가 어느 쪽인가: 두 프레임마다 좌우를 바꾼다 */
+function refuseSide() { return (Math.floor(refuseLeft / 2) % 2) ? 1 : -1; }
+
+/* 입을 다무는 순간인가 — 걸을 때는 빠르게, 서 있을 때는 느리게 */
+function mouthShut() {
+  if (S.sleeping) { return true; }
+  if (refuseLeft > 0) { return true; }   // 입을 꾹 다물고 고개를 젓는다
+  if (eat) { return !eatMouthOpen(); }    // 먹는 중에는 벌렸다 다물었다
+  if (petMode === "WALK") { return step % 4 < 2; }
+  if (petMode === "FLY") { return false; }
+  return frame % 26 < 6;
 }
 
 /* 화면 모드 — 조작은 오직 A / B / C */
@@ -1183,6 +1354,8 @@ var ROWS = [
 function drawStatusPage() {
   var f = FORMS[S.form] || FORMS.baby;
   drawText(S.form === "egg" ? "EGG" : S.name + " " + f.name, 3, 2, 1);
+  var cd = new Date(S.clock), hm = pad2(cd.getHours()) + ":" + pad2(cd.getMinutes());
+  drawText(hm, W - textWidth(hm, 1) - 3, 2, 1);
   drawText("AGE " + fmtAge(S.ageMin) + " WT " + S.weight, 3, 9, 1);
   drawText("MISS " + S.mistakes + " PLAY " + S.playCount, 3, 16, 1);
   cx.fillStyle = INK;
@@ -1282,6 +1455,12 @@ function render() {
   } else if (game && game.kind === "DANCE" && game.phase === "SHOW" &&
              gameLeanIsJump()) {
     bob = -8;                                  // 댄스의 점프 동작
+  } else if (refuseLeft > 0 || eat) {
+    bob = 0;                                   // 제자리에 서서 고개를 젓거나 먹는다
+  } else if (petMode === "FLY") {
+    bob = flyAlt();                            // 떠 있는 중
+  } else if (petMode === "HOP" && hopLeft > 0) {
+    bob = HOP_ARC[HOP_ARC.length - 1 - hopLeft];   // 제자리 뛰기
   } else if (petMode === "WALK") {
     bob = step % 2;                            // 걸음마다 오르내린다
   } else {
@@ -1289,6 +1468,10 @@ function render() {
   }
 
   var px = 24 + (game ? gameLean() * 12 : petX);
+  if (!game && S.call && !S.sleeping && frame % 4 < 2) { px += 1; }  // 부를 때는 몸을 들썩인다
+  var shaking = refuseLeft > 0 && !S.sleeping && !game;
+  if (shaking) { px += refuseSide(); }
+  if (eat && !game) { px = 16; }
   var py = FLOOR - 45 + bob;
   if (game && game.kind === "JUMP") {
     px = 6;
@@ -1322,14 +1505,33 @@ function render() {
   var form = FORMS[S.form] || FORMS.baby;
   var rows = SPR[form.spr];
   var holes = HOLES[form.spr];
-  if (!S.sleeping && petDir < 0 && !game) { rows = mirrored(form.spr, rows); }
-  if (S.sleeping && form.sleepSpr) {
+  var faceLeft = eat ? false : (shaking ? (refuseSide() < 0) : (petDir < 0));
+  if (!S.sleeping && faceLeft && !game) { rows = mirrored(form.spr, rows); }
+  if (S.form === "egg") {
+    var near = S.ageMin >= CFG.stages.hatch - 1;          // 부화 직전
+    var big = (frame % (near ? 6 : 10)) < (near ? 3 : 5); // 커졌다 작아졌다
+    var wob = near ? (frame % 2) : ((frame % 14 < 7) ? 0 : 1);
+    drawSprite(cx, big ? SPR.egg : SPR.eggSmall, HOLES.egg, 24 + wob, py, 3, bg);
+  } else if (S.sleeping && form.sleepSpr) {
     drawSprite(cx, SPR[form.sleepSpr], HOLES[form.sleepSpr], 24, py + 3, 3, bg);
   } else {
     var eyeDx = 0;
-    if (game) { eyeDx = game.lean; }
-    else if (!S.sleeping && petMode === "WALK") { eyeDx = petDir; }
+    if (game) { eyeDx = gameLean(); }
+    else if (!S.sleeping) {
+      if (eat) { eyeDx = 1; }
+      else if (shaking) { eyeDx = refuseSide(); }
+      else { eyeDx = (petMode === "WALK" || petMode === "FLY") ? petDir : (eyeLookLeft > 0 ? eyeLook : 0); }
+    }
+    if (!game && mouthShut()) { holes = holes.replace("M", ""); }   // 입을 다문다
     drawPet(rows, holes, px, py, 3, bg, eyeDx, blinkLeft > 0 || S.sleeping);
+  }
+
+  if (eat && !game) {
+    var st = eatStage();
+    if (st < EAT_BITES) {
+      var fk = eat.kind + st;
+      drawSprite(cx, SPR[fk], HOLES[fk], 66, py + 20, 2, bg);
+    }
   }
 
   if (game && game.kind === "JUMP") {
@@ -1456,7 +1658,10 @@ function flushEvents() {
 
 var modal = document.getElementById("modal");
 function showRestart() {
+  modalStage = "DEATH";
   document.getElementById("modalTitle").textContent = "GOODBYE";
+  document.getElementById("setupClockWrap").style.display = "none";
+  document.getElementById("nameInput").style.display = "none";
   document.getElementById("modalText").textContent =
     S.name + " LIVED " + fmtAge(S.deathAge) + ". " + S.deathCause +
     ". THE RECORD STAYS IN THE DEX. TAKE A NEW EGG?";
@@ -1469,6 +1674,7 @@ function showRestart() {
    INPUT — A / B / C 세 버튼이 전부
    ========================================================= */
 function pressA() {
+  if (eat) { eat = null; render(); return; }   // 먹는 장면 건너뛰기
   if (MODE === "GAME") { gameInput("A"); }
   else if (MODE === "PLAYMENU") { playSel = (playSel + playMenu.length - 1) % playMenu.length; }
   else if (MODE === "FEED") { feedSel = (feedSel + FEED_MENU.length - 1) % FEED_MENU.length; }
@@ -1477,6 +1683,7 @@ function pressA() {
   paintSel(); render();
 }
 function pressC() {
+  if (eat) { eat = null; render(); return; }   // 먹는 장면 건너뛰기
   if (MODE === "GAME") { gameInput("C"); }
   else if (MODE === "PLAYMENU") { playSel = (playSel + 1) % playMenu.length; }
   else if (MODE === "FEED") { feedSel = (feedSel + 1) % FEED_MENU.length; }
@@ -1485,6 +1692,7 @@ function pressC() {
   paintSel(); render();
 }
 function pressB() {
+  if (eat) { eat = null; render(); return; }   // 먹는 장면 건너뛰기
   if (MODE === "GAME") { gameInput("B"); }
   else if (MODE === "PLAYMENU") {
     var pick = playMenu[playSel];
@@ -1538,6 +1746,11 @@ document.getElementById("keyC").addEventListener("click", pressC);
 document.addEventListener("keydown", function (ev) {
   if (ev.target && ev.target.tagName === "INPUT") { return; }
   if (!ev.key) { return; }
+  if (resetModal.dataset.open === "1") {
+    if (ev.key === "Escape") { resetModal.dataset.open = "0"; }
+    return;
+  }
+  if (modal.dataset.open === "1") { return; }
   if (ev.key === "ArrowLeft") { pressA(); }
   else if (ev.key === "ArrowRight") { pressC(); }
   else if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); pressB(); }
@@ -1548,12 +1761,71 @@ nameInput.addEventListener("input", function () {
   nameInput.value = nameInput.value.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 6);
 });
 document.getElementById("goBtn").addEventListener("click", function () {
+  if (modalStage === "DEATH") { showSetup(); return; }   // 이별 다음엔 시계 확인부터
   S = newPet(nameInput.value.trim() || "PIP");
+  S.born = S.lastSeen = S.clock = Date.now();   // 확인을 누른 이 순간이 0분이다
   saveJSON(KEY_SAVE, S);
   modal.dataset.open = "0";
   MODE = "NORMAL";
   say("AN EGG ARRIVED");
   paintSel(); render();
+});
+
+/* =========================================================
+   SETUP CLOCK — 원조처럼 시계를 맞추는 대신 기기 시각을 확인시킨다
+   ========================================================= */
+var DOW = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+function pad2(n) { return (n < 10 ? "0" : "") + n; }
+function tickSetupClock() {
+  if (modal.dataset.open !== "1") { return; }
+  var d = new Date(Date.now());   // 시작 기준과 같은 출처를 쓴다
+  document.getElementById("setupClock").innerHTML =
+    pad2(d.getHours()) + '<span class="colon" data-off="' + (d.getSeconds() % 2) + '">:</span>' + pad2(d.getMinutes());
+  document.getElementById("setupDate").textContent =
+    d.getFullYear() + "." + pad2(d.getMonth() + 1) + "." + pad2(d.getDate()) + " " + DOW[d.getDay()];
+}
+setInterval(tickSetupClock, 500);
+var modalStage = "SETUP";   // SETUP: 시계 확인 후 시작 / DEATH: 이별 인사
+var SETUP_TEXT = "THIS CLOCK DECIDES DAY AND NIGHT. IF IT IS RIGHT, START. TIME KEEPS RUNNING EVEN WHILE THIS TAB IS CLOSED.";
+function showSetup() {
+  modalStage = "SETUP";
+  document.getElementById("modalTitle").textContent = "AN EGG ARRIVED";
+  document.getElementById("modalText").textContent = SETUP_TEXT;
+  document.getElementById("setupClockWrap").style.display = "";
+  document.getElementById("nameInput").style.display = "";
+  document.getElementById("nameInput").value = "";
+  document.getElementById("goBtn").textContent = "START";
+  modal.dataset.open = "1";
+  tickSetupClock();
+}
+
+/* =========================================================
+   RESET
+   ========================================================= */
+var resetModal = document.getElementById("resetModal");
+function anyModalOpen() {
+  return modal.dataset.open === "1" || resetModal.dataset.open === "1";
+}
+function doReset(clearDex) {
+  try {
+    localStorage.removeItem(KEY_SAVE);
+    if (clearDex) { localStorage.removeItem(KEY_DEX); }
+  } catch (e) {}
+  if (clearDex) { dex = { seen: {}, records: [] }; }
+  game = null; MODE = "NORMAL"; sel = 0;
+  S = newPet("PIP");
+  resetModal.dataset.open = "0";
+  showSetup();
+  paintSel(); render();
+}
+document.getElementById("resetPin").addEventListener("click", function () {
+  resetModal.dataset.open = "1";
+  document.getElementById("resetCancel").focus();
+});
+document.getElementById("resetPet").addEventListener("click", function () { doReset(false); });
+document.getElementById("resetAll").addEventListener("click", function () { doReset(true); });
+document.getElementById("resetCancel").addEventListener("click", function () {
+  resetModal.dataset.open = "0";
 });
 
 /* =========================================================
@@ -1565,14 +1837,15 @@ function boot() {
 
   var saved = loadJSON(KEY_SAVE);
   if (saved && saved.v === 3) {
-    S = saved;
+    S = migrate(saved);
+    if (typeof S.weight !== "number" || isNaN(S.weight)) { S.weight = baseWeight(); }
     var mins = catchUp();
     flushEvents();
     if (!S.dead && mins > 0) { say(fmtAge(mins) + " PASSED"); }
     if (S.dead) { showRestart(); }
   } else {
     S = newPet("PIP");
-    modal.dataset.open = "1";
+    showSetup();
   }
   render();
 
@@ -1589,7 +1862,9 @@ function boot() {
 
   setInterval(function () {
     if (!S) { return; }
-    if (!S.sleeping && S.form !== "egg" && !game && MODE === "NORMAL") { animate(); }
+    if (eat) { eatTick(); }
+    else if (refuseLeft > 0) { refuseLeft -= 1; }
+    else if (!S.sleeping && S.form !== "egg" && !game && MODE === "NORMAL") { animate(); }
     if (MODE === "GAME") { gameTick(); }
     render();
   }, 120);
